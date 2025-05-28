@@ -1,0 +1,21 @@
+# Abhängigkeiten
+node_modules/
+
+# Build-Ordner
+dist/
+build/
+
+# Umgebungsvariablen
+.env
+
+# Logs
+*.log
+
+# IDE-spezifische Dateien
+.vscode/
+.idea/
+
+# OS-spezifische Dateien
+.DS_Store
+Thumbs.db
+
