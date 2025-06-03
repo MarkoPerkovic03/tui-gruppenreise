@@ -80,11 +80,12 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-// Gruppen-Routen
+// Gruppen-Routen - KORRIGIERT: Endpunkte ohne /api prefix
 app.get('/api/groups', authenticateToken, (req, res) => {
   const userGroups = groups.filter(group => 
     group.members.some(member => member.email === req.user.email)
   );
+  console.log('Gruppen für User:', req.user.email, userGroups);
   res.json(userGroups);
 });
 
@@ -102,6 +103,7 @@ app.post('/api/groups', authenticateToken, (req, res) => {
     createdBy: req.user.email
   };
   groups.push(newGroup);
+  console.log('Neue Gruppe erstellt:', newGroup);
   res.status(201).json(newGroup);
 });
 
@@ -116,10 +118,11 @@ app.get('/api/groups/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ message: 'Zugriff verweigert' });
   }
   
+  console.log('Gruppendetails geladen:', group);
   res.json(group);
 });
 
-// Abstimmungs-Routen
+// Abstimmungs-Routen - KORRIGIERT
 app.get('/api/groups/:id/polls', authenticateToken, (req, res) => {
   const group = groups.find(g => g.id === req.params.id);
   if (!group) {
@@ -132,6 +135,7 @@ app.get('/api/groups/:id/polls', authenticateToken, (req, res) => {
   }
   
   const groupPolls = polls.filter(p => p.groupId === req.params.id);
+  console.log('Abstimmungen für Gruppe:', req.params.id, groupPolls);
   res.json(groupPolls);
 });
 
@@ -163,14 +167,19 @@ app.post('/api/groups/:id/polls', authenticateToken, (req, res) => {
     createdBy: req.user.email
   };
   polls.push(newPoll);
+  console.log('Neue Abstimmung erstellt:', newPoll);
   res.status(201).json(newPoll);
 });
 
-app.post('/api/polls/:pollId/vote', authenticateToken, (req, res) => {
+// KORRIGIERT: Abstimmungs-Endpunkt ohne /api prefix
+app.post('/polls/:pollId/vote', authenticateToken, (req, res) => {
   const { optionId } = req.body;
   const poll = polls.find(p => p.id === req.params.pollId);
   
+  console.log('Abstimmungsversuch:', { pollId: req.params.pollId, optionId, user: req.user.email });
+  
   if (!poll) {
+    console.log('Abstimmung nicht gefunden:', req.params.pollId);
     return res.status(404).json({ message: 'Abstimmung nicht gefunden' });
   }
 
@@ -182,17 +191,26 @@ app.post('/api/polls/:pollId/vote', authenticateToken, (req, res) => {
 
   const option = poll.options.find(o => o.id === optionId);
   if (!option) {
+    console.log('Option nicht gefunden:', optionId);
     return res.status(404).json({ message: 'Option nicht gefunden' });
   }
 
+  // Prüfe, ob der User bereits abgestimmt hat
   const hasVoted = poll.options.some(opt => opt.voters.includes(req.user.email));
   if (hasVoted) {
+    console.log('User hat bereits abgestimmt:', req.user.email);
     return res.status(400).json({ message: 'Sie haben bereits abgestimmt' });
   }
 
   option.votes += 1;
   option.voters.push(req.user.email);
   poll.totalVotes += 1;
+  
+  console.log('✅ Abstimmung erfolgreich:', { 
+    user: req.user.email, 
+    option: option.text, 
+    votes: option.votes 
+  });
   
   res.json(poll);
 });

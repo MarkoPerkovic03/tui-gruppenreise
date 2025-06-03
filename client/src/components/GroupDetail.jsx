@@ -17,9 +17,10 @@ import {
   Grid,
   Card,
   CardContent,
-  LinearProgress
+  LinearProgress,
+  Alert
 } from '@mui/material';
-import axios from 'axios';
+import api from '../utils/api'; // KORRIGIERT: Verwende die konfigurierte API
 
 const GroupDetail = () => {
   const { id } = useParams();
@@ -28,19 +29,36 @@ const GroupDetail = () => {
   const [pollTitle, setPollTitle] = useState('');
   const [pollOptions, setPollOptions] = useState(['']);
   const [polls, setPolls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchGroupDetails = async () => {
       try {
-        const response = await axios.get(`/api/groups/${id}`);
-        setGroup(response.data);
-        const pollsResponse = await axios.get(`/api/groups/${id}/polls`);
+        console.log('Lade Gruppendetails für ID:', id);
+        setLoading(true);
+        setError('');
+        
+        // KORRIGIERT: Verwende api statt axios
+        const groupResponse = await api.get(`/groups/${id}`);
+        console.log('Gruppe geladen:', groupResponse.data);
+        setGroup(groupResponse.data);
+        
+        const pollsResponse = await api.get(`/groups/${id}/polls`);
+        console.log('Abstimmungen geladen:', pollsResponse.data);
         setPolls(pollsResponse.data);
+        
       } catch (error) {
         console.error('Fehler beim Laden der Gruppendetails:', error);
+        setError('Fehler beim Laden der Gruppendetails. Bitte versuchen Sie es erneut.');
+      } finally {
+        setLoading(false);
       }
     };
-    fetchGroupDetails();
+    
+    if (id) {
+      fetchGroupDetails();
+    }
   }, [id]);
 
   const handleAddOption = () => {
@@ -55,7 +73,8 @@ const GroupDetail = () => {
 
   const handleCreatePoll = async () => {
     try {
-      const response = await axios.post(`/api/groups/${id}/polls`, {
+      // KORRIGIERT: Verwende api statt axios
+      const response = await api.post(`/groups/${id}/polls`, {
         title: pollTitle,
         options: pollOptions.filter(option => option.trim() !== '')
       });
@@ -65,25 +84,55 @@ const GroupDetail = () => {
       setPollOptions(['']);
     } catch (error) {
       console.error('Fehler beim Erstellen der Abstimmung:', error);
+      setError('Fehler beim Erstellen der Abstimmung.');
     }
   };
 
   const handleVote = async (pollId, optionId) => {
     try {
-      await axios.post(`/api/polls/${pollId}/vote`, { optionId });
-      const updatedPollsResponse = await axios.get(`/api/groups/${id}/polls`);
+      // KORRIGIERT: Verwende api statt axios
+      await api.post(`/polls/${pollId}/vote`, { optionId });
+      const updatedPollsResponse = await api.get(`/groups/${id}/polls`);
       setPolls(updatedPollsResponse.data);
     } catch (error) {
       console.error('Fehler beim Abstimmen:', error);
+      setError('Fehler beim Abstimmen.');
     }
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Typography>Lädt Gruppendetails...</Typography>
+      </Box>
+    );
+  }
+
+  if (error && !group) {
+    return (
+      <Box sx={{ p: 3 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
+          {error}
+        </Alert>
+        <Button onClick={() => window.location.reload()}>
+          Erneut versuchen
+        </Button>
+      </Box>
+    );
+  }
+
   if (!group) {
-    return <Box sx={{ p: 3 }}><Typography>Lädt...</Typography></Box>;
+    return <Box sx={{ p: 3 }}><Typography>Gruppe nicht gefunden</Typography></Box>;
   }
 
   return (
     <Box sx={{ p: 3 }}>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+          {error}
+        </Alert>
+      )}
+
       <Typography variant="h4" sx={{ color: '#0057B8', mb: 3 }}>
         {group.name}
       </Typography>
@@ -93,7 +142,7 @@ const GroupDetail = () => {
           <Paper sx={{ p: 2, mb: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>Mitglieder</Typography>
             <List>
-              {group.members.map((member, index) => (
+              {group.members && group.members.map((member, index) => (
                 <ListItem key={index}>
                   <ListItemText primary={member.email} />
                 </ListItem>
@@ -124,7 +173,7 @@ const GroupDetail = () => {
                     <Typography variant="h6" sx={{ mb: 2 }}>
                       {poll.title}
                     </Typography>
-                    {poll.options.map((option) => (
+                    {poll.options && poll.options.map((option) => (
                       <Box key={option.id} sx={{ mb: 2 }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                           <Typography variant="body1" sx={{ flexGrow: 1 }}>
@@ -145,11 +194,11 @@ const GroupDetail = () => {
                         </Box>
                         <LinearProgress
                           variant="determinate"
-                          value={(option.votes / poll.totalVotes) * 100}
+                          value={poll.totalVotes > 0 ? (option.votes / poll.totalVotes) * 100 : 0}
                           sx={{ height: 10, borderRadius: 5 }}
                         />
                         <Typography variant="body2" sx={{ mt: 0.5 }}>
-                          {option.votes} Stimmen
+                          {option.votes || 0} Stimmen
                         </Typography>
                       </Box>
                     ))}
@@ -203,4 +252,4 @@ const GroupDetail = () => {
   );
 };
 
-export default GroupDetail; 
+export default GroupDetail;

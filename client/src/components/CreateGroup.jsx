@@ -16,7 +16,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import axios from 'axios';
+import api from '../utils/api'; // Korrigiert: Verwende die konfigurierte API
 import { useNavigate } from 'react-router-dom';
 
 const CreateGroup = () => {
@@ -71,7 +71,8 @@ const CreateGroup = () => {
       return;
     }
     try {
-      const response = await axios.post('/api/groups', {
+      // Korrigiert: Verwende die konfigurierte API statt direktes axios
+      const response = await api.post('/groups', {
         name: groupName,
         description,
         members: emailList
@@ -216,4 +217,4 @@ const CreateGroup = () => {
   );
 };
 
-export default CreateGroup; 
+export default CreateGroup;

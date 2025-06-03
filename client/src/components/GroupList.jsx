@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../utils/api'; // KORRIGIERT: Verwende die konfigurierte API
 import { 
   Card, 
   Button, 
@@ -24,7 +24,8 @@ const GroupList = () => {
   useEffect(() => {
     const fetchGroups = async () => {
       try {
-        const response = await axios.get('/api/groups');
+        // KORRIGIERT: Verwende api statt axios und /groups statt /api/groups
+        const response = await api.get('/groups');
         setGroups(response.data);
       } catch (error) {
         console.error('Fehler beim Laden der Gruppen:', error);
@@ -144,4 +145,4 @@ const GroupList = () => {
   );
 };
 
-export default GroupList; 
+export default GroupList;
