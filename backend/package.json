@@ -1,5 +1,5 @@
 {
-  "name": "backend",
+  "name": "tui-backend",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
@@ -13,13 +13,13 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "backend": "file:",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.15.1"
+    "mongoose": "^8.15.1",
+    "tui-backend": "file:"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"
