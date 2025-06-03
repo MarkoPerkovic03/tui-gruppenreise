@@ -8,14 +8,20 @@
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["tui", "gruppenreisen", "travel", "backend"],
+  "keywords": [
+    "tui",
+    "gruppenreisen",
+    "travel",
+    "backend"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.21.2",
-    "cors": "^2.8.5",
-    "jsonwebtoken": "^9.0.2",
     "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "tui-gruppenreisen-server": "file:",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
