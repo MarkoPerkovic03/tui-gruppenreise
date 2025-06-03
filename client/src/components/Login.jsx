@@ -1,16 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Paper,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Container,
+  Card,
+  CardContent
+} from '@mui/material';
+import FlightIcon from '@mui/icons-material/Flight';
 import '../styles/Login.css';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch('http://localhost:3000/api/auth/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -18,54 +35,97 @@ const Login = () => {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await response.json();
+
       if (response.ok) {
-        const data = await response.json();
         localStorage.setItem('token', data.token);
-        navigate('/dashboard');
+        localStorage.setItem('user', JSON.stringify(data.user));
+        // App wird automatisch neu gerendert durch den useEffect in App.jsx
+        navigate('/');
       } else {
-        alert('Login fehlgeschlagen. Bitte überprüfen Sie Ihre Eingaben.');
+        setError(data.message || 'Login fehlgeschlagen');
       }
     } catch (error) {
       console.error('Login-Fehler:', error);
-      alert('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
+      setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="login-container">
-      <div className="login-box">
-        <h1>Willkommen zurück</h1>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="email">E-Mail</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Passwort</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" className="login-button">
-            Anmelden
-          </button>
-        </form>
-        <p className="register-link">
-          Noch kein Konto? <a href="/register">Jetzt registrieren</a>
-        </p>
-      </div>
-    </div>
+    <Box className="login-container">
+      <Container maxWidth="sm">
+        <Card sx={{ mt: 8, boxShadow: 3 }}>
+          <CardContent sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 3 }}>
+              <FlightIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+              <Typography variant="h4" component="h1" sx={{ color: 'primary.main', fontWeight: 600 }}>
+                TUI Gruppenreisen
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary" sx={{ mt: 1 }}>
+                Willkommen zurück
+              </Typography>
+            </Box>
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 3 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Box component="form" onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                label="E-Mail"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                sx={{ mb: 3 }}
+                autoComplete="email"
+              />
+              
+              <TextField
+                fullWidth
+                label="Passwort"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                sx={{ mb: 3 }}
+                autoComplete="current-password"
+              />
+              
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                sx={{ 
+                  mb: 2,
+                  py: 1.5,
+                  fontSize: '1.1rem',
+                  fontWeight: 600
+                }}
+              >
+                {loading ? 'Anmelden...' : 'Anmelden'}
+              </Button>
+            </Box>
+
+            <Box sx={{ mt: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
+              <Typography variant="body2" color="text.secondary" align="center">
+                <strong>Demo-Zugang:</strong><br />
+                E-Mail: demo@tui.com<br />
+                Passwort: demo123
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+      </Container>
+    </Box>
   );
 };
 
-export default Login; 
+export default Login;
