@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 
-// Vereinfachtes In-Memory-Auth-System für Testzwecke
+// In-Memory Benutzerspeicher
 const users = [
   {
     id: 1,
@@ -18,7 +18,7 @@ const users = [
   }
 ];
 
-// Login ohne Datenbank
+// Login
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
   const user = users.find(u => u.email === email && u.password === password);
@@ -36,7 +36,7 @@ router.post('/login', (req, res) => {
   });
 });
 
-// Registrierung ohne Datenbank
+// Registrierung
 router.post('/register', (req, res) => {
   const { email, password, isSystemAdmin } = req.body;
 
