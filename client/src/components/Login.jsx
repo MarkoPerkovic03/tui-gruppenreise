@@ -52,7 +52,7 @@ const Login = () => {
     
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/login', { email, password });
+      const response = await api.post('/api/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       
@@ -81,7 +81,7 @@ const Login = () => {
     
     setIsLoading(true);
     try {
-      const response = await api.post('/auth/register', {
+      const response = await api.post('/api/auth/register', {
         email,
         password,
         isSystemAdmin

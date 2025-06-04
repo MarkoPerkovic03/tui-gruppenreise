@@ -46,7 +46,7 @@ const TravelOffers = () => {
 
       try {
         console.log('Lade Reiseangebote...');
-        const response = await api.get('/api/travel-offers');
+        const response = await api.get('/travel-offers');
         console.log('Geladene Angebote:', response.data);
         setOffers(response.data);
         setError(null);
