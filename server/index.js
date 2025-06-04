@@ -248,7 +248,11 @@ const authenticateToken = (req, res, next) => {
   }
 
   try {
-    const user = users.find(u => u.email === token);
+     const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'your-secret-key'
+    );
+    const user = users.find((u) => u.id === decoded.id);
     if (!user) {
       return res.status(403).json({ message: 'Ungültiger Token' });
     }
@@ -267,19 +271,20 @@ app.get('/test', (req, res) => {
 // Auth-Routen
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
-  const user = users.find(u => u.email === email && u.password === password);
+   const user = users.find((u) => u.email === email && u.password === password);
   
   if (!user) {
     return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
   }
   
-  res.json({
-    token: user.email,
-    user: {
-      email: user.email,
-      isSystemAdmin: user.isSystemAdmin
-    }
-  });
+ const token = jwt.sign(
+    { id: user.id, email: user.email, isSystemAdmin: user.isSystemAdmin },
+    process.env.JWT_SECRET || 'your-secret-key',
+    { expiresIn: '24h' }
+  );
+
+  const { password: _pw, ...userWithoutPassword } = user;
+  res.json({ token, user: userWithoutPassword });
 });
 
 app.post('/api/auth/register', async (req, res) => {
@@ -303,7 +308,7 @@ app.post('/api/auth/register', async (req, res) => {
   // JWT Token generieren
   const token = jwt.sign(
     { id: newUser.id, email: newUser.email, isSystemAdmin: newUser.isSystemAdmin },
-    'your-secret-key',
+     process.env.JWT_SECRET || 'your-secret-key',
     { expiresIn: '24h' }
   );
   

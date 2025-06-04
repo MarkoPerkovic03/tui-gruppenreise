@@ -8,8 +8,12 @@ module.exports = (req, res, next) => {
       throw new Error();
     }
     
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'your-secret-key'
+    );
+    req.userId = decoded.id;
+    req.user = decoded;
     next();
   } catch (error) {
     res.status(401).json({ message: 'Bitte authentifizieren' });
