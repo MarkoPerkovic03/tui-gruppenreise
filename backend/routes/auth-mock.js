@@ -63,4 +63,4 @@ router.post('/register', (req, res) => {
   res.status(201).json({ token, user: userWithoutPassword });
 });
 
-module.exports = router;
+module.exports = router
