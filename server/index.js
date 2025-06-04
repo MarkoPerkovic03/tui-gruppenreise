@@ -248,7 +248,8 @@ const authenticateToken = (req, res, next) => {
   }
 
   try {
-    const user = users.find(u => u.email === token);
+    const decoded = jwt.verify(token, 'your-secret-key');
+    const user = users.find(u => u.id === decoded.id && u.email === decoded.email);
     if (!user) {
       return res.status(403).json({ message: 'Ungültiger Token' });
     }
@@ -268,13 +269,19 @@ app.get('/test', (req, res) => {
 app.post('/auth/login', (req, res) => {
   const { email, password } = req.body;
   const user = users.find(u => u.email === email && u.password === password);
-  
+
   if (!user) {
     return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
   }
-  
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, isSystemAdmin: user.isSystemAdmin },
+    'your-secret-key',
+    { expiresIn: '24h' }
+  );
+
   res.json({
-    token: user.email,
+    token,
     user: {
       email: user.email,
       isSystemAdmin: user.isSystemAdmin
