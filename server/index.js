@@ -265,7 +265,7 @@ app.get('/test', (req, res) => {
 });
 
 // Auth-Routen
-app.post('/auth/login', (req, res) => {
+app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
   const user = users.find(u => u.email === email && u.password === password);
   
@@ -282,7 +282,7 @@ app.post('/auth/login', (req, res) => {
   });
 });
 
-app.post('/auth/register', async (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { email, password, isSystemAdmin } = req.body;
   
   // Überprüfen, ob E-Mail bereits existiert
