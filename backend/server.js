@@ -15,7 +15,7 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
-// Anpassung: Auth-Routen ohne /api Prefix, damit Frontend /auth nutzen kann
+// Authentifizierungsrouten mit Datenbank
 app.use('/api/auth', require('./routes/auth'));
 app.use('/groups', require('./routes/groups'));
 

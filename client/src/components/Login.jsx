@@ -23,6 +23,7 @@ const Login = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,6 +31,9 @@ const Login = () => {
 
   const validateForm = () => {
     const errors = {};
+    if (activeTab === 1 && !name) {
+      errors.name = 'Name ist erforderlich';
+    }
     if (!email) {
       errors.email = 'E-Mail ist erforderlich';
     } else if (!/\S+@\S+\.\S+/.test(email)) {
@@ -47,18 +51,18 @@ const Login = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!validateForm()) return;
-    
+
     setIsLoading(true);
     try {
       const response = await api.post('/api/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      
+
       setUser(response.data.user);
       setIsAuthenticated(true);
-      
+
       const from = location.state?.from?.pathname || '/groups';
       navigate(from, { replace: true });
     } catch (error) {
@@ -76,22 +80,23 @@ const Login = () => {
   const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     if (!validateForm()) return;
-    
+
     setIsLoading(true);
     try {
       const response = await api.post('/api/auth/register', {
+        name,
         email,
         password,
         isSystemAdmin
       });
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-      
+
       setUser(response.data.user);
       setIsAuthenticated(true);
-      
+
       const from = location.state?.from?.pathname || '/groups';
       navigate(from, { replace: true });
     } catch (error) {
@@ -116,15 +121,7 @@ const Login = () => {
         backgroundColor: '#f5f5f5'
       }}
     >
-      <Paper
-        elevation={3}
-        sx={{
-          p: 4,
-          width: '100%',
-          maxWidth: 400,
-          textAlign: 'center'
-        }}
-      >
+      <Paper elevation={3} sx={{ p: 4, width: '100%', maxWidth: 400, textAlign: 'center' }}>
         <Typography variant="h4" component="h1" gutterBottom>
           TUI Gruppenreisen
         </Typography>
@@ -142,13 +139,22 @@ const Login = () => {
           <Tab label="Registrieren" />
         </Tabs>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
-          </Alert>
-        )}
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
         <form onSubmit={activeTab === 0 ? handleLogin : handleRegister}>
+          {activeTab === 1 && (
+            <TextField
+              fullWidth
+              label="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              error={!!validationErrors.name}
+              helperText={validationErrors.name}
+              required
+              sx={{ mb: 2 }}
+            />
+          )}
+
           <TextField
             fullWidth
             label="E-Mail"
