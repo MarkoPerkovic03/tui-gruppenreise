@@ -35,7 +35,7 @@ const GroupList = () => {
   }, []);
 
   const handleCreateGroup = () => {
-    navigate('/create-group');
+    navigate('/groups/create');
   };
 
   return (

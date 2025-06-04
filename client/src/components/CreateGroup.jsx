@@ -11,24 +11,59 @@ import {
   Step,
   StepLabel,
   IconButton,
-  Alert
+  Alert,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Slider
 } from '@mui/material';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
-import api from '../utils/api'; // Korrigiert: Verwende die konfigurierte API
+import api from '../utils/api';
 import { useNavigate } from 'react-router-dom';
+import deLocale from 'date-fns/locale/de';
 
 const CreateGroup = () => {
   const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [groupName, setGroupName] = useState('');
   const [description, setDescription] = useState('');
+  const [maxParticipants, setMaxParticipants] = useState(2);
+  const [travelPeriod, setTravelPeriod] = useState({
+    start: null,
+    end: null
+  });
+  const [preferences, setPreferences] = useState({
+    budget: [0, 5000],
+    travelType: [],
+    activities: []
+  });
   const [inviteEmails, setInviteEmails] = useState('');
   const [emailList, setEmailList] = useState([]);
   const [error, setError] = useState('');
 
-  const steps = ['Gruppendetails', 'Mitglieder einladen'];
+  const steps = ['Gruppendetails', 'Präferenzen', 'Mitglieder einladen'];
+
+  const travelTypes = [
+    'Strandurlaub',
+    'Städtereise',
+    'Wanderurlaub',
+    'Kulturreise',
+    'Abenteuerreise'
+  ];
+
+  const activities = [
+    'Sightseeing',
+    'Shopping',
+    'Sport',
+    'Entspannung',
+    'Nachtleben',
+    'Kulinarik'
+  ];
 
   const handleAddEmail = () => {
     const email = inviteEmails.trim();
@@ -52,9 +87,15 @@ const CreateGroup = () => {
   };
 
   const handleNext = () => {
-    if (activeStep === 0 && !groupName.trim()) {
-      setError('Bitte geben Sie einen Gruppennamen ein');
-      return;
+    if (activeStep === 0) {
+      if (!groupName.trim()) {
+        setError('Bitte geben Sie einen Gruppennamen ein');
+        return;
+      }
+      if (!travelPeriod.start || !travelPeriod.end) {
+        setError('Bitte geben Sie einen Reisezeitraum ein');
+        return;
+      }
     }
     setError('');
     setActiveStep((prev) => prev + 1);
@@ -70,11 +111,17 @@ const CreateGroup = () => {
       setError('Bitte geben Sie einen Gruppennamen ein');
       return;
     }
+    if (emailList.length < 1) { // Mind. 2 Teilnehmer (inkl. Admin)
+      setError('Bitte laden Sie mindestens einen weiteren Teilnehmer ein');
+      return;
+    }
     try {
-      // Korrigiert: Verwende die konfigurierte API statt direktes axios
       const response = await api.post('/groups', {
         name: groupName,
         description,
+        maxParticipants,
+        travelPeriod,
+        preferences,
         members: emailList
       });
       navigate(`/group/${response.data.id}`);
@@ -84,8 +131,15 @@ const CreateGroup = () => {
     }
   };
 
+  const handlePreferenceChange = (type, value) => {
+    setPreferences(prev => ({
+      ...prev,
+      [type]: value
+    }));
+  };
+
   return (
-    <>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={deLocale}>
       <Box className="page-header">
         <Box sx={{ maxWidth: 800, mx: 'auto', px: 3 }}>
           <Typography variant="h4" sx={{ mb: 2 }}>
@@ -135,6 +189,102 @@ const CreateGroup = () => {
                   placeholder="Beschreiben Sie den Zweck der Gruppe und mögliche Reiseziele..."
                   sx={{ mb: 3 }}
                 />
+
+                <TextField
+                  type="number"
+                  fullWidth
+                  label="Maximale Teilnehmeranzahl"
+                  value={maxParticipants}
+                  onChange={(e) => setMaxParticipants(Math.max(2, parseInt(e.target.value)))}
+                  inputProps={{ min: 2 }}
+                  required
+                  sx={{ mb: 3 }}
+                />
+
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Reisezeitraum
+                  </Typography>
+                  <Stack direction="row" spacing={2}>
+                    <DatePicker
+                      label="Von"
+                      value={travelPeriod.start}
+                      onChange={(date) => setTravelPeriod(prev => ({ ...prev, start: date }))}
+                      renderInput={(params) => <TextField {...params} fullWidth />}
+                      minDate={new Date()}
+                    />
+                    <DatePicker
+                      label="Bis"
+                      value={travelPeriod.end}
+                      onChange={(date) => setTravelPeriod(prev => ({ ...prev, end: date }))}
+                      renderInput={(params) => <TextField {...params} fullWidth />}
+                      minDate={travelPeriod.start || new Date()}
+                    />
+                  </Stack>
+                </Box>
+              </>
+            ) : activeStep === 1 ? (
+              <>
+                <Box sx={{ mb: 4 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Budget pro Person (€)
+                  </Typography>
+                  <Slider
+                    value={preferences.budget}
+                    onChange={(_, value) => handlePreferenceChange('budget', value)}
+                    valueLabelDisplay="auto"
+                    min={0}
+                    max={10000}
+                    step={100}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    {`${preferences.budget[0]}€ - ${preferences.budget[1]}€`}
+                  </Typography>
+                </Box>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Reisearten</InputLabel>
+                  <Select
+                    multiple
+                    value={preferences.travelType}
+                    onChange={(e) => handlePreferenceChange('travelType', e.target.value)}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {travelTypes.map((type) => (
+                      <MenuItem key={type} value={type}>
+                        {type}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <FormControl fullWidth sx={{ mb: 3 }}>
+                  <InputLabel>Aktivitäten</InputLabel>
+                  <Select
+                    multiple
+                    value={preferences.activities}
+                    onChange={(e) => handlePreferenceChange('activities', e.target.value)}
+                    renderValue={(selected) => (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {selected.map((value) => (
+                          <Chip key={value} label={value} />
+                        ))}
+                      </Box>
+                    )}
+                  >
+                    {activities.map((activity) => (
+                      <MenuItem key={activity} value={activity}>
+                        {activity}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </>
             ) : (
               <>
@@ -203,7 +353,7 @@ const CreateGroup = () => {
                   <Button
                     variant="contained"
                     onClick={handleNext}
-                    endIcon={<AddIcon />}
+                    endIcon={<ArrowBackIcon sx={{ transform: 'rotate(180deg)' }} />}
                   >
                     Weiter
                   </Button>
@@ -213,7 +363,7 @@ const CreateGroup = () => {
           </form>
         </Paper>
       </Box>
-    </>
+    </LocalizationProvider>
   );
 };
 

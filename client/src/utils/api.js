@@ -1,14 +1,11 @@
 import axios from 'axios';
 
-// Basis-URL für alle API-Anfragen
+// Basis-URL für die API
 const api = axios.create({
-  baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: 'http://localhost:3001/api',
 });
 
-// Request-Interceptor: Automatisch JWT-Token hinzufügen
+// Request-Interceptor: Token aus localStorage hinzufügen
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -32,7 +29,14 @@ api.interceptors.response.use(
       // Token ist ungültig oder abgelaufen
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      
+      // Löse ein Storage-Event aus, damit App.jsx darauf reagieren kann
+      window.dispatchEvent(new Event('storage'));
+      
+      // Nur zur Login-Seite weiterleiten, wenn wir nicht bereits dort sind
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

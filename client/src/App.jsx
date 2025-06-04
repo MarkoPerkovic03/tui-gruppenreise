@@ -1,4 +1,5 @@
-import { BrowserRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Container, Box, Button } from '@mui/material';
 import GroupList from './components/GroupList';
 import CreateGroup from './components/CreateGroup';
@@ -8,6 +9,7 @@ import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useState, useEffect, createContext, useContext } from 'react';
+import AdminDashboard from './components/AdminDashboard';
 
 // Context für Authentifizierung
 const AuthContext = createContext();
@@ -65,26 +67,72 @@ const theme = createTheme({
   },
 });
 
+// Geschützte Route Komponente
+const PrivateRoute = ({ children, requiresAdmin = false }) => {
+  const { isAuthenticated, user } = useAuth();
+  const location = useLocation();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requiresAdmin && !user?.isSystemAdmin) {
+    return <Navigate to="/groups" replace />;
+  }
+
+  return children;
+};
+
+// Login Route Komponente
+const LoginRoute = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || '/groups';
+
+  if (isAuthenticated) {
+    return <Navigate to={from} replace />;
+  }
+
+  return children;
+};
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-    
-    if (token && savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error('Fehler beim Laden der Benutzerdaten:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    const checkAuth = () => {
+      const token = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
+      
+      if (token && savedUser) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+        } catch (error) {
+          console.error('Fehler beim Laden der Benutzerdaten:', error);
+          handleLogout();
+        }
+      } else {
+        setIsAuthenticated(false);
+        setUser(null);
       }
-    }
-    setLoading(false);
+      setLoading(false);
+    };
+
+    checkAuth();
+
+    // Event-Listener für Storage-Änderungen
+    const handleStorageChange = (e) => {
+      if (e.key === 'token' || e.key === 'user') {
+        checkAuth();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const handleLogout = () => {
@@ -124,22 +172,21 @@ function App() {
                 <FlightIcon sx={{ mr: 2 }} />
                 <Typography 
                   variant="h6" 
-                  component={isAuthenticated ? Link : 'div'} 
-                  to={isAuthenticated ? "/" : undefined}
+                  component={Link} 
+                  to="/" 
                   sx={{ 
                     flexGrow: 1, 
                     textDecoration: 'none', 
-                    color: 'white',
-                    cursor: isAuthenticated ? 'pointer' : 'default'
+                    color: 'white' 
                   }}
                 >
                   TUI Gruppenreisen
                 </Typography>
-                {isAuthenticated ? (
+                {isAuthenticated && (
                   <>
                     <Button
                       component={Link}
-                      to="/"
+                      to="/groups"
                       startIcon={<HomeIcon />}
                       color="inherit"
                       sx={{ mr: 2 }}
@@ -148,38 +195,67 @@ function App() {
                     </Button>
                     <Button
                       onClick={handleLogout}
-                      startIcon={<LogoutIcon />}
                       color="inherit"
+                      startIcon={<LogoutIcon />}
+                      component={Link}
+                      to="/login"
                     >
                       Abmelden
                     </Button>
                   </>
-                ) : null}
+                )}
               </Toolbar>
             </AppBar>
 
             <Box component="main" className="main-content">
-              <Container>
-                <Routes>
-                  <Route 
-                    path="/login" 
-                    element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} 
-                  />
-                  <Route
-                    path="/"
-                    element={isAuthenticated ? <GroupList /> : <Navigate to="/login" replace />}
-                  />
-                  <Route
-                    path="/create-group"
-                    element={isAuthenticated ? <CreateGroup /> : <Navigate to="/login" replace />}
-                  />
-                  <Route
-                    path="/group/:id"
-                    element={isAuthenticated ? <GroupDetail /> : <Navigate to="/login" replace />}
-                  />
-                  <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
-                </Routes>
-              </Container>
+              <Routes>
+                <Route 
+                  path="/login" 
+                  element={
+                    <LoginRoute>
+                      <Login />
+                    </LoginRoute>
+                  } 
+                />
+                <Route
+                  path="/groups"
+                  element={
+                    <PrivateRoute>
+                      <GroupList />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/groups/create"
+                  element={
+                    <PrivateRoute>
+                      <CreateGroup />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/group/:id"
+                  element={
+                    <PrivateRoute>
+                      <GroupDetail />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/admin/dashboard"
+                  element={
+                    <PrivateRoute requiresAdmin={true}>
+                      <AdminDashboard />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/"
+                  element={
+                    <Navigate to="/groups" replace />
+                  }
+                />
+              </Routes>
             </Box>
 
             <Box component="footer" className="footer">
