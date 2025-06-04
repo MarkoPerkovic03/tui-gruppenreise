@@ -7,7 +7,12 @@ import bcrypt from 'bcryptjs';
 const app = express();
 const port = 3001;
 
-app.use(cors());
+// CORS-Konfiguration
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
+
 app.use(express.json());
 
 // In-Memory Datenbanken
@@ -29,22 +34,229 @@ const users = [
   }
 ];
 
-// JWT Middleware
+// Beispiel-Reiseangebote
+const travelOffers = [
+  {
+    id: '1',
+    title: 'Traumhafte Toskana Tour',
+    location: 'Toskana, Italien',
+    duration: 7,
+    price: 129,
+    pricePerDay: 129,
+    rating: 4.8,
+    image: 'https://source.unsplash.com/random?tuscany,wine',
+    description: 'Entdecken Sie die malerische Landschaft der Toskana, besuchen Sie historische Städte und genießen Sie die italienische Küche.',
+    travelType: ['Kulturreise', 'Genussreise'],
+    activities: [
+      'Weinverkostungen in traditionellen Weingütern',
+      'Kochkurse für toskanische Spezialitäten',
+      'Besichtigung historischer Städte',
+      'Olivenöl-Verkostungen',
+      'Fotografie-Workshops in der Landschaft'
+    ],
+    tags: ['Kultur', 'Kulinarik', 'Entspannung']
+  },
+  {
+    id: '2',
+    title: 'Nordlichter in Norwegen',
+    location: 'Tromsø, Norwegen',
+    duration: 5,
+    price: 259,
+    pricePerDay: 259,
+    rating: 4.9,
+    image: 'https://source.unsplash.com/random?norway,northern,lights',
+    description: 'Erleben Sie das magische Naturschauspiel der Nordlichter und entdecken Sie die atemberaubende norwegische Landschaft.',
+    travelType: ['Abenteuerreise', 'Naturreise'],
+    activities: [
+      'Nordlichter-Fotografie',
+      'Hundeschlittentouren',
+      'Schneemobil-Safari',
+      'Besuch eines Sami-Camps',
+      'Walbeobachtung'
+    ],
+    tags: ['Abenteuer', 'Natur', 'Winter']
+  },
+  {
+    id: '3',
+    title: 'Griechische Inselträume',
+    location: 'Kykladen, Griechenland',
+    duration: 10,
+    price: 119,
+    pricePerDay: 119,
+    rating: 4.7,
+    image: 'https://source.unsplash.com/random?greece,santorini',
+    description: 'Entspannen Sie auf den schönsten Inseln Griechenlands, besuchen Sie antike Stätten und genießen Sie das mediterrane Flair.',
+    travelType: ['Strandurlaub', 'Kulturreise'],
+    activities: [
+      'Inselhopping zu den schönsten Stränden',
+      'Besichtigung antiker Tempel',
+      'Schnorcheltouren',
+      'Griechische Kochkurse',
+      'Sonnenuntergang-Segeltouren'
+    ],
+    tags: ['Strand', 'Kultur', 'Entspannung']
+  },
+  {
+    id: '4',
+    title: 'Spanische Tapas Tour',
+    location: 'Barcelona & Madrid, Spanien',
+    duration: 6,
+    price: 133,
+    pricePerDay: 133,
+    rating: 4.6,
+    image: 'https://source.unsplash.com/random?spain,tapas',
+    description: 'Entdecken Sie die kulinarische Vielfalt Spaniens und erleben Sie die lebendige Kultur der spanischen Metropolen.',
+    travelType: ['Städtereise', 'Genussreise'],
+    activities: [
+      'Tapas-Workshops',
+      'Stadtführungen',
+      'Flamenco-Shows',
+      'Weinverkostungen',
+      'Besuch lokaler Märkte'
+    ],
+    tags: ['Kulinarik', 'Städtereise', 'Kultur']
+  },
+  {
+    id: '5',
+    title: 'Alpen Wanderparadies',
+    location: 'Tirol, Österreich',
+    duration: 8,
+    price: 112,
+    pricePerDay: 112,
+    rating: 4.8,
+    image: 'https://source.unsplash.com/random?alps,hiking',
+    description: 'Wandern Sie durch die malerische Bergwelt Tirols und genießen Sie die frische Bergluft und traditionelle Hüttengastronomie.',
+    travelType: ['Aktivreise', 'Naturreise'],
+    activities: [
+      'Geführte Bergwanderungen',
+      'Klettersteig-Touren',
+      'Mountain-Biking',
+      'Yoga in den Bergen',
+      'Besuch traditioneller Almhütten'
+    ],
+    tags: ['Wandern', 'Natur', 'Sport']
+  },
+  {
+    id: '6',
+    title: 'Kroatische Küstenträume',
+    location: 'Dalmatien, Kroatien',
+    duration: 9,
+    price: 111,
+    pricePerDay: 111,
+    rating: 4.7,
+    image: 'https://source.unsplash.com/random?croatia,coast',
+    description: 'Entdecken Sie die traumhafte Küste Dalmatiens, kristallklares Wasser und historische Städte.',
+    travelType: ['Strandurlaub', 'Aktivreise'],
+    activities: [
+      'Kajak-Touren entlang der Küste',
+      'Schnorcheln in Buchten',
+      'Stadtführungen in Dubrovnik',
+      'Inselhopping',
+      'Weinverkostungen'
+    ],
+    tags: ['Strand', 'Kultur', 'Entspannung']
+  },
+  {
+    id: '7',
+    title: 'Island Abenteuer',
+    location: 'Reykjavik & Golden Circle, Island',
+    duration: 8,
+    price: 289,
+    pricePerDay: 289,
+    rating: 4.9,
+    image: 'https://source.unsplash.com/random?iceland,waterfall',
+    description: 'Erleben Sie die faszinierende Naturgewalt Islands mit seinen Geysiren, Wasserfällen und Vulkanen.',
+    travelType: ['Abenteuerreise', 'Naturreise'],
+    activities: [
+      'Gletscherwanderungen',
+      'Bade in heißen Quellen',
+      'Super-Jeep Touren',
+      'Vulkanwanderungen',
+      'Walbeobachtung'
+    ],
+    tags: ['Abenteuer', 'Natur', 'Aktiv']
+  },
+  {
+    id: '8',
+    title: 'Portugal Surf Camp',
+    location: 'Peniche, Portugal',
+    duration: 7,
+    price: 99,
+    pricePerDay: 99,
+    rating: 4.6,
+    image: 'https://source.unsplash.com/random?portugal,surf',
+    description: 'Lernen Sie das Surfen an Portugals besten Stränden und genießen Sie die entspannte Atmosphäre.',
+    travelType: ['Sportreise', 'Strandurlaub'],
+    activities: [
+      'Surfkurse für alle Level',
+      'Yoga am Strand',
+      'Stand-Up Paddling',
+      'Beachvolleyball',
+      'Sunset BBQs'
+    ],
+    tags: ['Sport', 'Strand', 'Aktiv']
+  },
+  {
+    id: '9',
+    title: 'Französische Gourmet-Tour',
+    location: 'Provence & Côte d\'Azur, Frankreich',
+    duration: 6,
+    price: 199,
+    pricePerDay: 199,
+    rating: 4.8,
+    image: 'https://source.unsplash.com/random?france,provence',
+    description: 'Eine kulinarische Reise durch die Provence mit Weinverkostungen und Kochkursen.',
+    travelType: ['Genussreise', 'Kulturreise'],
+    activities: [
+      'Besuch lokaler Märkte',
+      'Weinverkostungen',
+      'Französische Kochkurse',
+      'Lavendelfeld-Besichtigungen',
+      'Käserei-Besuche'
+    ],
+    tags: ['Kulinarik', 'Kultur', 'Genuss']
+  },
+  {
+    id: '10',
+    title: 'Schottische Highlands',
+    location: 'Highlands, Schottland',
+    duration: 8,
+    price: 159,
+    pricePerDay: 159,
+    rating: 4.7,
+    image: 'https://source.unsplash.com/random?scotland,highlands',
+    description: 'Entdecken Sie die mystische Landschaft der schottischen Highlands mit ihren Burgen und Lochs.',
+    travelType: ['Naturreise', 'Kulturreise'],
+    activities: [
+      'Whisky Destillerie Besuche',
+      'Wanderungen durch die Highlands',
+      'Bootstouren auf Loch Ness',
+      'Besuch historischer Burgen',
+      'Highland Games Erlebnis'
+    ],
+    tags: ['Natur', 'Kultur', 'Wandern']
+  }
+];
+
+// Middleware für Token-Authentifizierung
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const authToken = authHeader && authHeader.split(' ')[1];
+  const token = authHeader && authHeader.split(' ')[1];
 
-  if (!authToken) {
-    return res.status(401).json({ message: 'Nicht authentifiziert' });
+  if (!token) {
+    return res.status(401).json({ message: 'Kein Token vorhanden' });
   }
 
-  jwt.verify(authToken, 'your-secret-key', (err, user) => {
-    if (err) {
+  try {
+    const user = users.find(u => u.email === token);
+    if (!user) {
       return res.status(403).json({ message: 'Ungültiger Token' });
     }
     req.user = user;
     next();
-  });
+  } catch (error) {
+    return res.status(403).json({ message: 'Ungültiger Token' });
+  }
 };
 
 // Test-Route
@@ -53,76 +265,55 @@ app.get('/test', (req, res) => {
 });
 
 // Auth-Routen
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { email, password, isSystemAdmin } = req.body;
-
-    // Prüfe, ob der Benutzer bereits existiert
-    if (users.some(u => u.email === email)) {
-      return res.status(400).json({ message: 'Ein Benutzer mit dieser E-Mail existiert bereits' });
-    }
-
-    const newUser = {
-      id: users.length + 1,
-      email,
-      password, // In einer echten Anwendung würde das Passwort gehasht werden
-      isSystemAdmin: isSystemAdmin || false
-    };
-
-    users.push(newUser);
-
-    const userToken = jwt.sign(
-      { userId: newUser.id, email: newUser.email, isSystemAdmin: newUser.isSystemAdmin },
-      'your-secret-key',
-      { expiresIn: '24h' }
-    );
-
-    res.status(201).json({
-      token: userToken,
-      user: {
-        id: newUser.id,
-        email: newUser.email,
-        isSystemAdmin: newUser.isSystemAdmin
-      }
-    });
-  } catch (error) {
-    console.error('Registrierungsfehler:', error);
-    res.status(500).json({ message: 'Interner Server-Fehler' });
+app.post('/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  const user = users.find(u => u.email === email && u.password === password);
+  
+  if (!user) {
+    return res.status(401).json({ message: 'Ungültige Anmeldedaten' });
   }
+  
+  res.json({
+    token: user.email,
+    user: {
+      email: user.email,
+      isSystemAdmin: user.isSystemAdmin
+    }
+  });
 });
 
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = users.find(u => u.email === email);
-    if (!user) {
-      return res.status(401).json({ message: 'Ungültige E-Mail oder Passwort' });
-    }
-
-    // In einer echten Anwendung würde hier das Passwort verglichen werden
-    if (password === user.password) {
-      const userToken = jwt.sign(
-        { userId: user.id, email: user.email, isSystemAdmin: user.isSystemAdmin },
-        'your-secret-key',
-        { expiresIn: '24h' }
-      );
-
-      res.json({
-        token: userToken,
-        user: {
-          id: user.id,
-          email: user.email,
-          isSystemAdmin: user.isSystemAdmin
-        }
-      });
-    } else {
-      return res.status(401).json({ message: 'Ungültige E-Mail oder Passwort' });
-    }
-  } catch (error) {
-    console.error('Login-Fehler:', error);
-    res.status(500).json({ message: 'Interner Server-Fehler' });
+app.post('/auth/register', async (req, res) => {
+  const { email, password, isSystemAdmin } = req.body;
+  
+  // Überprüfen, ob E-Mail bereits existiert
+  if (users.some(u => u.email === email)) {
+    return res.status(400).json({ message: 'Diese E-Mail-Adresse ist bereits registriert' });
   }
+  
+  // Neuen Benutzer erstellen
+  const newUser = {
+    id: users.length + 1,
+    email,
+    password, // In der Produktion sollte das Passwort gehasht werden
+    isSystemAdmin: isSystemAdmin || false
+  };
+  
+  users.push(newUser);
+  
+  // JWT Token generieren
+  const token = jwt.sign(
+    { id: newUser.id, email: newUser.email, isSystemAdmin: newUser.isSystemAdmin },
+    'your-secret-key',
+    { expiresIn: '24h' }
+  );
+  
+  // Benutzer ohne Passwort zurückgeben
+  const { password: _, ...userWithoutPassword } = newUser;
+  
+  res.status(201).json({
+    token,
+    user: userWithoutPassword
+  });
 });
 
 // Systemadmin-Route zum Auflisten aller Benutzer
@@ -162,36 +353,31 @@ app.put('/api/users/:id', authenticateToken, (req, res) => {
   });
 });
 
-// Gruppen-Routen - KORRIGIERT: Endpunkte ohne /api prefix
-app.get('/api/groups', authenticateToken, (req, res) => {
+// Gruppen-Routen
+app.get('/groups', authenticateToken, (req, res) => {
   const userGroups = groups.filter(group => 
     group.members.some(member => member.email === req.user.email)
   );
-  console.log('Gruppen für User:', req.user.email, userGroups);
   res.json(userGroups);
 });
 
-app.post('/api/groups', authenticateToken, (req, res) => {
-  const { name, description, members, maxParticipants, travelPeriod, preferences } = req.body;
+app.post('/groups', authenticateToken, (req, res) => {
+  const { name, description, maxParticipants, travelDateFrom, travelDateTo, preferences, budgetMin, budgetMax } = req.body;
   
-  // Validierung
-  if (members.length < 1) { // Mind. 2 Teilnehmer (inkl. Admin)
-    return res.status(400).json({ message: 'Eine Gruppe muss mindestens zwei Teilnehmer haben' });
-  }
-
   const newGroup = {
     id: uuidv4(),
     name,
     description,
     maxParticipants,
     travelPeriod: {
-      start: travelPeriod.start,
-      end: travelPeriod.end
+      start: travelDateFrom,
+      end: travelDateTo
     },
     preferences,
+    budgetMin,
+    budgetMax,
     members: [
-      { email: req.user.email, id: uuidv4(), role: 'admin' },
-      ...members.map(email => ({ email, id: uuidv4(), role: 'member' }))
+      { email: req.user.email, role: 'admin' }
     ],
     createdAt: new Date().toISOString(),
     createdBy: req.user.email,
@@ -202,7 +388,7 @@ app.post('/api/groups', authenticateToken, (req, res) => {
   res.status(201).json(newGroup);
 });
 
-app.get('/api/groups/:id', authenticateToken, (req, res) => {
+app.get('/groups/:id', authenticateToken, (req, res) => {
   const group = groups.find(g => g.id === req.params.id);
   if (!group) {
     return res.status(404).json({ message: 'Gruppe nicht gefunden' });
@@ -213,7 +399,6 @@ app.get('/api/groups/:id', authenticateToken, (req, res) => {
     return res.status(403).json({ message: 'Zugriff verweigert' });
   }
   
-  console.log('Gruppendetails geladen:', group);
   res.json(group);
 });
 
@@ -471,7 +656,13 @@ app.delete('/api/groups/:id/members/:email', authenticateToken, async (req, res)
   }
 });
 
-app.listen(port, () => {
+// Reiseangebote-Route
+app.get('/api/travel-offers', authenticateToken, (req, res) => {
+  res.json(travelOffers);
+});
+
+// Server-Start
+app.listen(port, '0.0.0.0', () => {
   console.log(`🚀 Server läuft auf Port ${port}`);
   console.log(`Test-URL: http://localhost:${port}/test`);
   console.log(`Login-URL: http://localhost:${port}/api/auth/login`);

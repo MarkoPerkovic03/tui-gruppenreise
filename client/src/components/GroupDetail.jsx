@@ -75,7 +75,7 @@ const GroupDetail = () => {
         console.log('Lade Gruppendetails für ID:', id);
         setError('');
         
-        // KORRIGIERT: Verwende api statt axios
+        // KORRIGIERT: Verwende die richtige Route
         const groupResponse = await api.get(`/groups/${id}`);
         console.log('Gruppe geladen:', groupResponse.data);
         setGroup(groupResponse.data);

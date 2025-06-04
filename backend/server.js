@@ -1,27 +1,24 @@
 require('dotenv').config();
 const express = require('express');
-const cors = require('cors'); // HINZUFÜGEN
+const cors = require('cors');
 const connectDB = require('./config/database');
-
 const app = express();
 
-// Middleware
-app.use(cors()); // HINZUFÜGEN
-app.use(express.json());
-
-// Datenbankverbindung
+// Verbindung zur Datenbank herstellen
 connectDB();
 
-// TEST ROUTE - HINZUFÜGEN
-app.get('/', (req, res) => {
-  res.json({ message: 'Backend läuft!' });
-});
+// Middleware
+app.use(cors({
+  origin: 'http://localhost:5173', // Vite Dev Server
+  credentials: true
+}));
+app.use(express.json());
 
-// Routes - AKTIVIEREN!
+// Routes
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/groups', require('./routes/groups'));
+app.use('/groups', require('./routes/groups'));
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Server läuft auf Port ${PORT}`);
+  console.log(`🚀 Server läuft auf Port ${PORT}`);
 });

@@ -5,9 +5,11 @@ import GroupList from './components/GroupList';
 import CreateGroup from './components/CreateGroup';
 import GroupDetail from './components/GroupDetail';
 import Login from './components/Login';
+import TravelOffers from './components/TravelOffers';
 import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
+import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import { useState, useEffect, createContext, useContext } from 'react';
 import AdminDashboard from './components/AdminDashboard';
 
@@ -194,6 +196,15 @@ function App() {
                       Startseite
                     </Button>
                     <Button
+                      component={Link}
+                      to="/travel-offers"
+                      startIcon={<BeachAccessIcon />}
+                      color="inherit"
+                      sx={{ mr: 2 }}
+                    >
+                      Reiseangebote
+                    </Button>
+                    <Button
                       onClick={handleLogout}
                       color="inherit"
                       startIcon={<LogoutIcon />}
@@ -238,6 +249,14 @@ function App() {
                   element={
                     <PrivateRoute>
                       <GroupDetail />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/travel-offers"
+                  element={
+                    <PrivateRoute>
+                      <TravelOffers />
                     </PrivateRoute>
                   }
                 />

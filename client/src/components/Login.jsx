@@ -9,7 +9,8 @@ import {
   FormControlLabel,
   Checkbox,
   Tabs,
-  Tab
+  Tab,
+  CircularProgress
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../utils/api';
@@ -24,9 +25,32 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  const validateForm = () => {
+    const errors = {};
+    if (!email) {
+      errors.email = 'E-Mail ist erforderlich';
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = 'Ungültige E-Mail-Adresse';
+    }
+    if (!password) {
+      errors.password = 'Passwort ist erforderlich';
+    } else if (password.length < 6) {
+      errors.password = 'Passwort muss mindestens 6 Zeichen lang sein';
+    }
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError('');
+    
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
     try {
       const response = await api.post('/auth/login', { email, password });
       localStorage.setItem('token', response.data.token);
@@ -35,17 +59,27 @@ const Login = () => {
       setUser(response.data.user);
       setIsAuthenticated(true);
       
-      // Weiterleitung zur vorherigen Seite oder zur Gruppenliste
       const from = location.state?.from?.pathname || '/groups';
       navigate(from, { replace: true });
     } catch (error) {
       console.error('Login-Fehler:', error);
-      setError('Ungültige E-Mail oder Passwort');
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleRegister = async (e) => {
     e.preventDefault();
+    setError('');
+    
+    if (!validateForm()) return;
+    
+    setIsLoading(true);
     try {
       const response = await api.post('/auth/register', {
         email,
@@ -58,12 +92,17 @@ const Login = () => {
       setUser(response.data.user);
       setIsAuthenticated(true);
       
-      // Weiterleitung zur vorherigen Seite oder zur Gruppenliste
       const from = location.state?.from?.pathname || '/groups';
       navigate(from, { replace: true });
     } catch (error) {
       console.error('Registrierungsfehler:', error);
-      setError('Registrierung fehlgeschlagen. Möglicherweise existiert die E-Mail bereits.');
+      if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -92,7 +131,11 @@ const Login = () => {
 
         <Tabs
           value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
+          onChange={(e, newValue) => {
+            setActiveTab(newValue);
+            setError('');
+            setValidationErrors({});
+          }}
           sx={{ mb: 3 }}
         >
           <Tab label="Anmelden" />
@@ -111,7 +154,12 @@ const Login = () => {
             label="E-Mail"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setValidationErrors(prev => ({ ...prev, email: '' }));
+            }}
+            error={!!validationErrors.email}
+            helperText={validationErrors.email}
             required
             sx={{ mb: 2 }}
           />
@@ -121,7 +169,12 @@ const Login = () => {
             label="Passwort"
             type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              setValidationErrors(prev => ({ ...prev, password: '' }));
+            }}
+            error={!!validationErrors.password}
+            helperText={validationErrors.password}
             required
             sx={{ mb: 2 }}
           />
@@ -144,12 +197,17 @@ const Login = () => {
             variant="contained"
             fullWidth
             size="large"
+            disabled={isLoading}
             sx={{
               backgroundColor: '#0057B8',
               '&:hover': { backgroundColor: '#004494' }
             }}
           >
-            {activeTab === 0 ? 'Anmelden' : 'Registrieren'}
+            {isLoading ? (
+              <CircularProgress size={24} color="inherit" />
+            ) : (
+              activeTab === 0 ? 'Anmelden' : 'Registrieren'
+            )}
           </Button>
         </form>
       </Paper>

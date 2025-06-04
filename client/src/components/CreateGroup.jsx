@@ -111,7 +111,7 @@ const CreateGroup = () => {
       setError('Bitte geben Sie einen Gruppennamen ein');
       return;
     }
-    if (emailList.length < 1) { // Mind. 2 Teilnehmer (inkl. Admin)
+    if (emailList.length < 1) {
       setError('Bitte laden Sie mindestens einen weiteren Teilnehmer ein');
       return;
     }
@@ -120,9 +120,11 @@ const CreateGroup = () => {
         name: groupName,
         description,
         maxParticipants,
-        travelPeriod,
-        preferences,
-        members: emailList
+        travelDateFrom: travelPeriod.start,
+        travelDateTo: travelPeriod.end,
+        preferences: preferences.travelType,
+        budgetMin: preferences.budget[0],
+        budgetMax: preferences.budget[1]
       });
       navigate(`/group/${response.data.id}`);
     } catch (error) {

@@ -19,12 +19,26 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const group = new Group({
-      ...req.body,
+      name: req.body.name,
+      description: req.body.description,
+      maxParticipants: req.body.maxParticipants,
+      travelDateFrom: req.body.travelDateFrom,
+      travelDateTo: req.body.travelDateTo,
+      budgetMin: req.body.budgetMin,
+      budgetMax: req.body.budgetMax,
+      preferences: req.body.preferences,
       creator: req.userId,
-      members: [{ user: req.userId, role: 'admin' }]
+      members: [{ user: req.userId, role: 'admin' }],
+      status: 'planning'
     });
-    await group.save();
-    res.status(201).json(group);
+    
+    const savedGroup = await group.save();
+    const populatedGroup = await savedGroup
+      .populate('creator', 'name email')
+      .populate('members.user', 'name email')
+      .execPopulate();
+    
+    res.status(201).json(populatedGroup);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -39,6 +53,14 @@ router.get('/:id', auth, async (req, res) => {
     
     if (!group) {
       return res.status(404).json({ message: 'Gruppe nicht gefunden' });
+    }
+    
+    const isMember = group.members.some(member => 
+      member.user._id.toString() === req.userId
+    );
+    
+    if (!isMember) {
+      return res.status(403).json({ message: 'Zugriff verweigert' });
     }
     
     res.json(group);
