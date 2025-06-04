@@ -15,7 +15,8 @@ app.use(cors({
 app.use(express.json());
 
 // Routes
-app.use('/api/auth', require('./routes/auth'));
+// Authentifizierungsrouten ohne Datenbank verwenden
+app.use('/api/auth', require('./routes/auth-mock'));
 app.use('/groups', require('./routes/groups'));
 
 const PORT = process.env.PORT || 3001;
