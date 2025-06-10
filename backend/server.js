@@ -18,7 +18,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Routen
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/groups', require('./routes/groups'));
-app.use('/api/destinations', require('./routes/destinations')); // ✅ Korrekt eingebunden
+app.use('/api/destinations', require('./routes/destinations'));
+app.use('/api/travel-offers', require('./routes/travelOffers')); // ← DIESE ZEILE HINZUFÜGEN!
 
 // Fehlerbehandlung
 app.use((err, req, res, next) => {

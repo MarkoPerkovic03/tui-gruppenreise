@@ -10,8 +10,12 @@ import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
+import HotelIcon from '@mui/icons-material/Hotel';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { useState, useEffect, createContext, useContext } from 'react';
 import AdminDashboard from './components/AdminDashboard';
+import AdminTravelOffers from './components/AdminTravelOffers'; // ← Hinzugefügt
+import AdminDestinations from './components/AdminDestinations'; // ← Hinzugefügt
 
 // Context für Authentifizierung
 const AuthContext = createContext();
@@ -204,6 +208,37 @@ function App() {
                     >
                       Reiseangebote
                     </Button>
+                    {/* Admin-Buttons nur für Admins anzeigen */}
+                    {user?.isSystemAdmin && (
+                      <>
+                        <Button
+                          component={Link}
+                          to="/admin/travel-offers"
+                          startIcon={<HotelIcon />}
+                          color="inherit"
+                          sx={{ mr: 2 }}
+                        >
+                          Angebote verwalten
+                        </Button>
+                        <Button
+                          component={Link}
+                          to="/admin/destinations"
+                          startIcon={<LocationOnIcon />}
+                          color="inherit"
+                          sx={{ mr: 2 }}
+                        >
+                          Reiseziele verwalten
+                        </Button>
+                        <Button
+                          component={Link}
+                          to="/admin/dashboard"
+                          color="inherit"
+                          sx={{ mr: 2 }}
+                        >
+                          Admin Dashboard
+                        </Button>
+                      </>
+                    )}
                     <Button
                       onClick={handleLogout}
                       color="inherit"
@@ -257,6 +292,23 @@ function App() {
                   element={
                     <PrivateRoute>
                       <TravelOffers />
+                    </PrivateRoute>
+                  }
+                />
+                {/* Admin-Routes hinzugefügt */}
+                <Route
+                  path="/admin/travel-offers"
+                  element={
+                    <PrivateRoute requiresAdmin={true}>
+                      <AdminTravelOffers />
+                    </PrivateRoute>
+                  }
+                />
+                <Route
+                  path="/admin/destinations"
+                  element={
+                    <PrivateRoute requiresAdmin={true}>
+                      <AdminDestinations />
                     </PrivateRoute>
                   }
                 />

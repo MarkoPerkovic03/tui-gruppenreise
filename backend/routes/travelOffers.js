@@ -126,6 +126,50 @@ router.get('/:id', auth, async (req, res) => {
     });
   }
 });
+// PUT /api/travel-offers/:id - Reiseangebot aktualisieren (nur Admins)
+router.put('/:id', adminAuth, async (req, res) => {
+  try {
+    const offer = await TravelOffer.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+
+    res.json({
+      message: 'Reiseangebot erfolgreich aktualisiert',
+      offer
+    });
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren des Reiseangebots:', error);
+    res.status(500).json({
+      message: 'Fehler beim Aktualisieren des Reiseangebots',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/travel-offers/:id - Reiseangebot löschen (nur Admins)
+router.delete('/:id', adminAuth, async (req, res) => {
+  try {
+    const offer = await TravelOffer.findByIdAndDelete(req.params.id);
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+
+    res.json({ message: 'Reiseangebot erfolgreich gelöscht' });
+  } catch (error) {
+    console.error('Fehler beim Löschen des Reiseangebots:', error);
+    res.status(500).json({
+      message: 'Fehler beim Löschen des Reiseangebots',
+      error: error.message
+    });
+  }
+});
 
 // Test-Route
 router.get('/test/ping', (req, res) => {

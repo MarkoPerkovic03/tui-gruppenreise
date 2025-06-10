@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Basis-URL für die API
 const api = axios.create({
-  baseURL: 'http://localhost:3001',
+  baseURL: 'http://localhost:3001/api',  // ← /api hinzugefügt!
   withCredentials: false, // CORS-Probleme vermeiden
   headers: {
     'Content-Type': 'application/json',
