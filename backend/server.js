@@ -9,7 +9,7 @@ connectDB();
 
 // Middleware
 app.use(cors({
-  origin: 'http://localhost:5173', // Vite Dev Server
+  origin: ['http://localhost:5173', 'http://localhost:5174'], // Vite Dev Server
   credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));

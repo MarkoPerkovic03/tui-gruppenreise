@@ -358,15 +358,14 @@ app.put('/api/users/:id', authenticateToken, (req, res) => {
   });
 });
 
-// Gruppen-Routen
-app.get('/groups', authenticateToken, (req, res) => {
-  const userGroups = groups.filter(group => 
-    group.members.some(member => member.email === req.user.email)
-  );
-  res.json(userGroups);
+// API Routes
+app.use('/api', (req, res, next) => {
+  console.log('API Request:', req.method, req.path);
+  next();
 });
 
-app.post('/groups', authenticateToken, (req, res) => {
+// Gruppen-Routen
+app.post('/api/groups', authenticateToken, (req, res) => {
   const { name, description, maxParticipants, travelDateFrom, travelDateTo, preferences, budgetMin, budgetMax } = req.body;
   
   const newGroup = {
@@ -393,7 +392,14 @@ app.post('/groups', authenticateToken, (req, res) => {
   res.status(201).json(newGroup);
 });
 
-app.get('/groups/:id', authenticateToken, (req, res) => {
+app.get('/api/groups', authenticateToken, (req, res) => {
+  const userGroups = groups.filter(group => 
+    group.members.some(member => member.email === req.user.email)
+  );
+  res.json(userGroups);
+});
+
+app.get('/api/groups/:id', authenticateToken, (req, res) => {
   const group = groups.find(g => g.id === req.params.id);
   if (!group) {
     return res.status(404).json({ message: 'Gruppe nicht gefunden' });

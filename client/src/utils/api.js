@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Basis-URL für die API
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',  // ← /api hinzugefügt!
+  baseURL: 'http://localhost:3001/api',  // ← Direkte Basis-URL zum Backend-API
   withCredentials: false, // CORS-Probleme vermeiden
   headers: {
     'Content-Type': 'application/json',
@@ -29,17 +29,13 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response) {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    } else if (error.response) {
       // Server hat mit einem Status-Code geantwortet
       switch (error.response.status) {
-        case 401:
-          // Nicht authentifiziert
-          handleAuthError();
-          break;
-        case 403:
-          // Keine Berechtigung
-          handleAuthError();
-          break;
         case 404:
           console.error('Ressource nicht gefunden:', error.config.url);
           break;
@@ -59,19 +55,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
-// Hilfsfunktion für die Behandlung von Authentifizierungsfehlern
-const handleAuthError = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  
-  // Löse ein Storage-Event aus, damit App.jsx darauf reagieren kann
-  window.dispatchEvent(new Event('storage'));
-  
-  // Nur zur Login-Seite weiterleiten, wenn wir nicht bereits dort sind
-  if (!window.location.pathname.includes('/login')) {
-    window.location.href = '/login';
-  }
-};
 
 export default api;

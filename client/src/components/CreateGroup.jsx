@@ -49,11 +49,14 @@ const CreateGroup = () => {
   const steps = ['Gruppendetails', 'Präferenzen', 'Mitglieder einladen'];
 
   const travelTypes = [
-    'Strandurlaub',
-    'Städtereise',
-    'Wanderurlaub',
-    'Kulturreise',
-    'Abenteuerreise'
+    'beach',
+    'city',
+    'adventure',
+    'culture',
+    'wellness',
+    'family',
+    'party',
+    'all_inclusive'
   ];
 
   const activities = [

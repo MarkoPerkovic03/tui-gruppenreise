@@ -31,7 +31,7 @@ const destinationSchema = new mongoose.Schema({
   },
   tags: [{
     type: String,
-    enum: ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family']
+    enum: ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family', 'romantic']
   }],
   coordinates: {
     lat: Number,
@@ -47,3 +47,4 @@ destinationSchema.index({ popularityScore: -1 });
 destinationSchema.index({ tags: 1 });
 
 module.exports = mongoose.model('Destination', destinationSchema);
+console.log('Destination Model loaded with tags including romantic.');
