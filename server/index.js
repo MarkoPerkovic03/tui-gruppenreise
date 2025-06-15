@@ -667,10 +667,168 @@ app.delete('/api/groups/:id/members/:email', authenticateToken, async (req, res)
   }
 });
 
-// Reiseangebote-Route
+// ===== REISEANGEBOTE CRUD-ROUTEN (VOLLSTÄNDIG) =====
+
+// 1. Alle Angebote abrufen (für alle authentifizierten Benutzer)
 app.get('/api/travel-offers', authenticateToken, (req, res) => {
   res.json(travelOffers);
 });
+
+// 2. Einzelnes Angebot abrufen
+app.get('/api/travel-offers/:id', authenticateToken, (req, res) => {
+  const offer = travelOffers.find(o => o.id === req.params.id);
+  if (!offer) {
+    return res.status(404).json({ message: 'Angebot nicht gefunden' });
+  }
+  res.json(offer);
+});
+
+// 3. Angebote filtern/suchen
+app.get('/api/travel-offers/search', authenticateToken, (req, res) => {
+  const { 
+    location, 
+    minPrice, 
+    maxPrice, 
+    minDuration, 
+    maxDuration, 
+    tags, 
+    travelType 
+  } = req.query;
+  
+  let filteredOffers = [...travelOffers];
+  
+  if (location) {
+    filteredOffers = filteredOffers.filter(offer => 
+      offer.location.toLowerCase().includes(location.toLowerCase())
+    );
+  }
+  
+  if (minPrice) {
+    filteredOffers = filteredOffers.filter(offer => offer.price >= parseFloat(minPrice));
+  }
+  
+  if (maxPrice) {
+    filteredOffers = filteredOffers.filter(offer => offer.price <= parseFloat(maxPrice));
+  }
+  
+  if (minDuration) {
+    filteredOffers = filteredOffers.filter(offer => offer.duration >= parseInt(minDuration));
+  }
+  
+  if (maxDuration) {
+    filteredOffers = filteredOffers.filter(offer => offer.duration <= parseInt(maxDuration));
+  }
+  
+  if (tags) {
+    const searchTags = tags.split(',').map(tag => tag.trim().toLowerCase());
+    filteredOffers = filteredOffers.filter(offer => 
+      searchTags.some(searchTag => 
+        offer.tags.some(offerTag => offerTag.toLowerCase().includes(searchTag))
+      )
+    );
+  }
+  
+  if (travelType) {
+    const searchTypes = travelType.split(',').map(type => type.trim().toLowerCase());
+    filteredOffers = filteredOffers.filter(offer => 
+      searchTypes.some(searchType => 
+        offer.travelType.some(offerType => offerType.toLowerCase().includes(searchType))
+      )
+    );
+  }
+  
+  res.json(filteredOffers);
+});
+
+// 4. Neues Angebot erstellen (nur für Systemadmins)
+app.post('/api/travel-offers', authenticateToken, (req, res) => {
+  if (!req.user.isSystemAdmin) {
+    return res.status(403).json({ message: 'Nur Systemadministratoren können Angebote erstellen' });
+  }
+  
+  const { 
+    title, 
+    location, 
+    duration, 
+    price, 
+    pricePerDay, 
+    description, 
+    travelType, 
+    activities, 
+    tags,
+    image 
+  } = req.body;
+  
+  // Validierung
+  if (!title || !location || !duration || !price) {
+    return res.status(400).json({ message: 'Titel, Ort, Dauer und Preis sind erforderlich' });
+  }
+  
+  const newOffer = {
+    id: (Math.max(...travelOffers.map(o => parseInt(o.id))) + 1).toString(),
+    title,
+    location,
+    duration: parseInt(duration),
+    price: parseFloat(price),
+    pricePerDay: pricePerDay || parseFloat(price),
+    rating: 0, // Neue Angebote starten mit 0 Bewertung
+    image: image || `https://source.unsplash.com/random?${location.toLowerCase().replace(/\s+/g, ',')}`,
+    description: description || '',
+    travelType: travelType || [],
+    activities: activities || [],
+    tags: tags || [],
+    createdAt: new Date().toISOString(),
+    createdBy: req.user.email
+  };
+  
+  travelOffers.push(newOffer);
+  console.log(`✅ Neues Angebot erstellt: ${newOffer.title} (ID: ${newOffer.id})`);
+  res.status(201).json(newOffer);
+});
+
+// 5. Angebot bearbeiten (nur für Systemadmins)
+app.put('/api/travel-offers/:id', authenticateToken, (req, res) => {
+  if (!req.user.isSystemAdmin) {
+    return res.status(403).json({ message: 'Nur Systemadministratoren können Angebote bearbeiten' });
+  }
+  
+  const offer = travelOffers.find(o => o.id === req.params.id);
+  if (!offer) {
+    return res.status(404).json({ message: 'Angebot nicht gefunden' });
+  }
+  
+  // Aktualisiere nur die übergebenen Felder
+  const updatedFields = { ...req.body };
+  delete updatedFields.id; // ID darf nicht geändert werden
+  delete updatedFields.createdAt; // Erstellungsdatum darf nicht geändert werden
+  delete updatedFields.createdBy; // Ersteller darf nicht geändert werden
+  
+  Object.assign(offer, updatedFields, { 
+    updatedAt: new Date().toISOString(),
+    updatedBy: req.user.email 
+  });
+  
+  console.log(`✅ Angebot aktualisiert: ${offer.title} (ID: ${offer.id})`);
+  res.json(offer);
+});
+
+// 6. Angebot löschen (nur für Systemadmins)
+app.delete('/api/travel-offers/:id', authenticateToken, (req, res) => {
+  if (!req.user.isSystemAdmin) {
+    return res.status(403).json({ message: 'Nur Systemadministratoren können Angebote löschen' });
+  }
+  
+  const index = travelOffers.findIndex(o => o.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ message: 'Angebot nicht gefunden' });
+  }
+  
+  const deletedOffer = travelOffers.splice(index, 1)[0];
+  console.log(`✅ Angebot gelöscht: ${deletedOffer.title} (ID: ${deletedOffer.id})`);
+  res.status(204).send();
+});
+
+// ===== ENDE DER NEUEN ROUTEN =====
 
 // Server-Start
 app.listen(port, '0.0.0.0', () => {
