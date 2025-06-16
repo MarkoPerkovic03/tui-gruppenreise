@@ -6,16 +6,18 @@ import CreateGroup from './components/CreateGroup';
 import GroupDetail from './components/GroupDetail';
 import Login from './components/Login';
 import TravelOffers from './components/TravelOffers';
+import UserProfile from './components/UserProfile'; // ← NEU HINZUGEFÜGT
 import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import HotelIcon from '@mui/icons-material/Hotel';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // ← NEU HINZUGEFÜGT
+// import LocationOnIcon from '@mui/icons-material/LocationOn'; // ← ENTFERNT (nicht mehr benötigt)
 import { useState, useEffect, createContext, useContext } from 'react';
 import AdminDashboard from './components/AdminDashboard';
-import AdminTravelOffers from './components/AdminTravelOffers'; // ← Hinzugefügt
-import AdminDestinations from './components/AdminDestinations'; // ← Hinzugefügt
+import AdminTravelOffers from './components/AdminTravelOffers'; 
+// import AdminDestinations from './components/AdminDestinations'; // ← ENTFERNT
 
 // Context für Authentifizierung
 const AuthContext = createContext();
@@ -208,6 +210,16 @@ function App() {
                     >
                       Reiseangebote
                     </Button>
+                    {/* ===== NEU: PROFIL BUTTON HINZUGEFÜGT ===== */}
+                    <Button
+                      component={Link}
+                      to="/profile"
+                      startIcon={<AccountCircleIcon />}
+                      color="inherit"
+                      sx={{ mr: 2 }}
+                    >
+                      Mein Profil
+                    </Button>
                     {/* Admin-Buttons nur für Admins anzeigen */}
                     {user?.isSystemAdmin && (
                       <>
@@ -220,15 +232,7 @@ function App() {
                         >
                           Angebote verwalten
                         </Button>
-                        <Button
-                          component={Link}
-                          to="/admin/destinations"
-                          startIcon={<LocationOnIcon />}
-                          color="inherit"
-                          sx={{ mr: 2 }}
-                        >
-                          Reiseziele verwalten
-                        </Button>
+                        {/* ENTFERNT: "Reiseziele verwalten" Button */}
                         <Button
                           component={Link}
                           to="/admin/dashboard"
@@ -295,7 +299,16 @@ function App() {
                     </PrivateRoute>
                   }
                 />
-                {/* Admin-Routes hinzugefügt */}
+                {/* ===== NEU: PROFIL ROUTE HINZUGEFÜGT ===== */}
+                <Route
+                  path="/profile"
+                  element={
+                    <PrivateRoute>
+                      <UserProfile />
+                    </PrivateRoute>
+                  }
+                />
+                {/* Admin-Routes */}
                 <Route
                   path="/admin/travel-offers"
                   element={
@@ -304,14 +317,7 @@ function App() {
                     </PrivateRoute>
                   }
                 />
-                <Route
-                  path="/admin/destinations"
-                  element={
-                    <PrivateRoute requiresAdmin={true}>
-                      <AdminDestinations />
-                    </PrivateRoute>
-                  }
-                />
+                {/* ENTFERNT: AdminDestinations Route */}
                 <Route
                   path="/admin/dashboard"
                   element={
