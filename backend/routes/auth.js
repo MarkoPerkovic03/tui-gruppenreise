@@ -1,4 +1,4 @@
-// backend/routes/auth.js - REPARIERTE VERSION
+// backend/routes/auth.js - MIT USERS-ROUTE ERWEITERT
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
@@ -184,6 +184,36 @@ router.get('/me', auth, async (req, res) => {
   } catch (error) {
     console.error('Get Me Fehler:', error);
     res.status(500).json({ message: 'Server-Fehler' });
+  }
+});
+
+// @route   GET /api/auth/users
+// @desc    Get all users (for group member selection)
+// @access  Private
+router.get('/users', auth, async (req, res) => {
+  try {
+    console.log('👥 Users laden für:', req.user.email);
+    
+    const users = await User.find({ isActive: true })
+      .select('email name profile.firstName profile.lastName profile.profileImage')
+      .limit(50)
+      .sort({ createdAt: -1 });
+    
+    // Formatiere für Frontend
+    const formattedUsers = users.map(user => ({
+      id: user._id.toString(),
+      email: user.email,
+      name: user.name,
+      firstName: user.profile?.firstName,
+      lastName: user.profile?.lastName,
+      profileImage: user.profile?.profileImage
+    }));
+    
+    console.log(`✅ ${formattedUsers.length} Users gefunden`);
+    res.json(formattedUsers);
+  } catch (error) {
+    console.error('❌ Users laden Fehler:', error);
+    res.status(500).json({ message: 'Fehler beim Laden der Benutzer' });
   }
 });
 

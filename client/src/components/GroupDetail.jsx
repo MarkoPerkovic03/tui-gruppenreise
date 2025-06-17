@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -14,9 +14,9 @@ import {
   DialogActions,
   TextField,
   Chip,
-  Grid,
-  Card,
-  CardContent,
+  Stack,
+  IconButton,
+  ListItemSecondaryAction,
   LinearProgress,
   Alert,
   Tabs,
@@ -24,137 +24,126 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem,
-  Stack,
-  IconButton,
-  ListItemSecondaryAction
+  MenuItem
 } from '@mui/material';
-import api from '../utils/api'; // KORRIGIERT: Verwende die konfigurierte API
-import TravelProposal, { TravelProposalList } from './TravelProposal';
+import api from '../utils/api';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 const GroupDetail = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [group, setGroup] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
-  const [editPreferencesOpen, setEditPreferencesOpen] = useState(false);
-  const [editMembersOpen, setEditMembersOpen] = useState(false);
-  const [newPreferences, setNewPreferences] = useState(null);
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [addPreferenceOpen, setAddPreferenceOpen] = useState(false);
   const [newPreference, setNewPreference] = useState('');
-  const [preferenceType, setPreferenceType] = useState('');
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState('');
 
-  // Vordefinierte Listen für Präferenzen
-  const travelTypes = [
-    'Strandurlaub',
-    'Städtereise',
-    'Wanderurlaub',
-    'Kulturreise',
-    'Abenteuerreise'
+  // Verfügbare Präferenzen basierend auf Ihrem Backend-Model
+  const availablePreferences = [
+    'all_inclusive', 'beach', 'city', 'adventure', 'culture', 'wellness', 'family', 'party'
   ];
 
-  const activities = [
-    'Sightseeing',
-    'Shopping',
-    'Sport',
-    'Entspannung',
-    'Nachtleben',
-    'Kulinarik'
-  ];
+  // SOFORTIGE KORREKTUR: Validiere und korrigiere ungültige IDs
+  useEffect(() => {
+    console.log('🔍 GroupDetail - ID Check:', { id, type: typeof id });
+    
+    // Behandle alle ungültigen ID-Fälle
+    if (!id || id === 'undefined' || id === 'null' || id.length < 10) {
+      console.error('❌ Ungültige Gruppen-ID:', id);
+      setError(`Ungültige Gruppen-ID: "${id}". Sie werden zur Gruppenübersicht weitergeleitet.`);
+      setLoading(false);
+      
+      // Automatische Weiterleitung nach 3 Sekunden
+      const timer = setTimeout(() => {
+        navigate('/groups', { replace: true });
+      }, 3000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [id, navigate]);
 
   useEffect(() => {
     const fetchGroupDetails = async () => {
+      // Früher Exit wenn ID ungültig
+      if (!id || id === 'undefined' || id === 'null' || id.length < 10) {
+        return;
+      }
+
       try {
-        console.log('Lade Gruppendetails für ID:', id);
+        console.log('📡 Lade Gruppendetails für ID:', id);
         setError('');
+        setLoading(true);
         
-        // KORRIGIERT: Verwende die richtige Route
-        const groupResponse = await api.get(`/groups/${id}`);
-        console.log('Gruppe geladen:', groupResponse.data);
-        setGroup(groupResponse.data);
+        const response = await api.get(`/groups/${id}`);
+        console.log('✅ Gruppe geladen:', response.data);
         
-        // Prüfe, ob der aktuelle Benutzer Admin ist
-        const currentUser = JSON.parse(localStorage.getItem('user'));
-        setIsAdmin(groupResponse.data.members.some(
-          member => member.email === currentUser.email && member.role === 'admin'
-        ));
-        setNewPreferences(groupResponse.data.preferences);
+        const groupData = response.data;
+        setGroup(groupData);
+        
+        // Prüfe Admin-Status
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const userIsAdmin = groupData.members?.some(member => {
+          const memberId = member.user?._id || member.user?.id || member.user;
+          const currentUserId = currentUser.id || currentUser._id;
+          return memberId === currentUserId && member.role === 'admin';
+        }) || groupData.creator?._id === currentUser.id || groupData.creator === currentUser.id;
+        
+        setIsAdmin(userIsAdmin);
         
       } catch (error) {
-        console.error('Fehler beim Laden der Gruppendetails:', error);
-        setError('Fehler beim Laden der Gruppendetails. Bitte versuchen Sie es erneut.');
+        console.error('❌ Fehler beim Laden der Gruppendetails:', error);
+        
+        let errorMessage = 'Fehler beim Laden der Gruppendetails.';
+        
+        if (error.response?.status === 404) {
+          errorMessage = 'Gruppe nicht gefunden.';
+        } else if (error.response?.status === 403) {
+          errorMessage = 'Sie haben keine Berechtigung, diese Gruppe zu sehen.';
+        } else if (error.response?.status === 400) {
+          errorMessage = 'Ungültige Gruppen-ID Format.';
+        }
+        
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
       }
     };
     
-    if (id) {
-      fetchGroupDetails();
-    }
+    fetchGroupDetails();
   }, [id]);
 
-  const handlePreferencesSubmit = async () => {
-    try {
-      await api.put(`/groups/${id}/preferences`, { preferences: newPreferences });
-      setGroup(prev => ({ ...prev, preferences: newPreferences }));
-      setEditPreferencesOpen(false);
-    } catch (error) {
-      console.error('Fehler beim Aktualisieren der Präferenzen:', error);
-      setError('Fehler beim Aktualisieren der Präferenzen');
-    }
-  };
+  const handleAddPreference = async () => {
+    if (!newPreference) return;
 
-  const handleMemberRoleChange = async (email, newRole) => {
-    const updatedMembers = group.members.map(member =>
-      member.email === email ? { ...member, role: newRole } : member
-    );
-    
     try {
-      await api.put(`/groups/${id}/members`, { members: updatedMembers });
-      setGroup(prev => ({ ...prev, members: updatedMembers }));
-    } catch (error) {
-      console.error('Fehler beim Aktualisieren der Mitgliederrollen:', error);
-      setError('Fehler beim Aktualisieren der Mitgliederrollen');
-    }
-  };
-
-  const handleProposalVote = async (proposalId) => {
-    try {
-      const response = await api.post(`/groups/${id}/proposals/${proposalId}/vote`);
-      setGroup(prev => ({
-        ...prev,
-        travelProposals: prev.travelProposals.map(proposal =>
-          proposal.id === proposalId ? response.data : proposal
-        )
-      }));
-    } catch (error) {
-      console.error('Fehler beim Abstimmen:', error);
-      setError('Fehler beim Abstimmen');
-    }
-  };
-
-  const handleProposalAdded = (newProposal) => {
-    setGroup(prev => ({
-      ...prev,
-      travelProposals: [...prev.travelProposals, newProposal]
-    }));
-  };
-
-  const handleDeletePreference = async (type, value) => {
-    try {
-      const updatedPreferences = { ...group.preferences };
-      if (type === 'budget') {
-        updatedPreferences.budget = [0, 5000]; // Reset auf Standardwert
-      } else {
-        updatedPreferences[type] = updatedPreferences[type].filter(item => item !== value);
+      const updatedPreferences = [...(group.preferences || [])];
+      if (!updatedPreferences.includes(newPreference)) {
+        updatedPreferences.push(newPreference);
+        
+        await api.put(`/groups/${id}`, { preferences: updatedPreferences });
+        setGroup(prev => ({ ...prev, preferences: updatedPreferences }));
+        
+        setNewPreference('');
+        setAddPreferenceOpen(false);
       }
-      
-      await api.put(`/groups/${id}/preferences`, { preferences: updatedPreferences });
+    } catch (error) {
+      console.error('Fehler beim Hinzufügen der Präferenz:', error);
+      setError('Fehler beim Hinzufügen der Präferenz');
+    }
+  };
+
+  const handleDeletePreference = async (preference) => {
+    try {
+      const updatedPreferences = (group.preferences || []).filter(p => p !== preference);
+      await api.put(`/groups/${id}`, { preferences: updatedPreferences });
       setGroup(prev => ({ ...prev, preferences: updatedPreferences }));
     } catch (error) {
       console.error('Fehler beim Löschen der Präferenz:', error);
@@ -162,94 +151,111 @@ const GroupDetail = () => {
     }
   };
 
-  const handleAddPreference = async () => {
-    if (!preferenceType) return;
-
-    try {
-      const updatedPreferences = { ...group.preferences };
-      if (!updatedPreferences[preferenceType]) {
-        updatedPreferences[preferenceType] = [];
-      }
-      
-      if (preferenceType === 'budget') {
-        // Für Budget-Präferenz
-        updatedPreferences.budget = newPreference;
-      } else if (!updatedPreferences[preferenceType].includes(newPreference)) {
-        // Für andere Präferenztypen
-        updatedPreferences[preferenceType] = [...updatedPreferences[preferenceType], newPreference];
-      }
-      
-      await api.put(`/groups/${id}/preferences`, { preferences: updatedPreferences });
-      setGroup(prev => ({ ...prev, preferences: updatedPreferences }));
-      
-      setNewPreference('');
-      setPreferenceType('');
-      setAddPreferenceOpen(false);
-    } catch (error) {
-      console.error('Fehler beim Hinzufügen der Präferenz:', error);
-      setError('Fehler beim Hinzufügen der Präferenz');
-    }
-  };
-
   const handleAddMember = async () => {
+    if (!newMemberEmail.trim()) return;
+
     try {
       setAddMemberError('');
+      
       const response = await api.post(`/groups/${id}/members`, {
-        email: newMemberEmail
+        userEmail: newMemberEmail.trim()
       });
       
-      setGroup(prev => ({
-        ...prev,
-        members: [...prev.members, response.data]
-      }));
+      // Gruppe neu laden für aktuelle Daten
+      const groupResponse = await api.get(`/groups/${id}`);
+      setGroup(groupResponse.data);
       
       setNewMemberEmail('');
-      setAddMemberError('');
       setAddMemberOpen(false);
     } catch (error) {
-      console.error('Fehler beim Hinzufügen des Mitglieds:', error);
+      console.error('❌ Fehler beim Hinzufügen des Mitglieds:', error);
       setAddMemberError(
         error.response?.data?.message || 
-        'Fehler beim Hinzufügen des Mitglieds. Bitte versuchen Sie es erneut.'
+        'Fehler beim Hinzufügen des Mitglieds. Prüfen Sie die E-Mail-Adresse.'
       );
     }
   };
 
-  const handleRemoveMember = async (memberEmail) => {
+  const handleLeaveGroup = async () => {
     try {
-      await api.delete(`/groups/${id}/members/${memberEmail}`);
-      setGroup(prev => ({
-        ...prev,
-        members: prev.members.filter(member => member.email !== memberEmail)
-      }));
+      await api.delete(`/groups/${id}/leave`);
+      navigate('/groups', { replace: true });
     } catch (error) {
-      console.error('Fehler beim Entfernen des Mitglieds:', error);
-      setError('Fehler beim Entfernen des Mitglieds');
+      console.error('Fehler beim Verlassen der Gruppe:', error);
+      setError(error.response?.data?.message || 'Fehler beim Verlassen der Gruppe');
     }
   };
 
+  // Loading State
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <LinearProgress sx={{ mb: 2 }} />
+        <Typography>Lade Gruppendetails...</Typography>
+      </Box>
+    );
+  }
+
+  // Error State - mit automatischer Weiterleitung
   if (error && !group) {
     return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
-        <Button onClick={() => window.location.reload()}>
-          Erneut versuchen
+        <Stack direction="row" spacing={2} justifyContent="center">
+          <Button 
+            variant="contained" 
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate('/groups', { replace: true })}
+          >
+            Zur Gruppenübersicht
+          </Button>
+          <Button 
+            variant="outlined"
+            onClick={() => window.location.reload()}
+          >
+            Seite neu laden
+          </Button>
+        </Stack>
+        <Typography variant="body2" sx={{ mt: 2, color: 'text.secondary' }}>
+          Sie werden automatisch in 3 Sekunden weitergeleitet...
+        </Typography>
+      </Box>
+    );
+  }
+
+  // No Group State
+  if (!group) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="h6" gutterBottom>
+          Gruppe nicht gefunden
+        </Typography>
+        <Button 
+          variant="contained"
+          startIcon={<ArrowBackIcon />}
+          onClick={() => navigate('/groups', { replace: true })}
+        >
+          Zurück zur Übersicht
         </Button>
       </Box>
     );
   }
 
-  if (!group) {
-    return <Box sx={{ p: 3 }}><Typography>Gruppe nicht gefunden</Typography></Box>;
-  }
-
   return (
     <>
+      {/* Header */}
       <Box className="page-header">
         <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3 }}>
-          <Typography variant="h4" sx={{ mb: 2 }}>
+          <Button 
+            startIcon={<ArrowBackIcon />}
+            onClick={() => navigate('/groups')}
+            sx={{ mb: 2, color: 'white' }}
+          >
+            Zurück zur Übersicht
+          </Button>
+          <Typography variant="h4" sx={{ mb: 2, color: 'white' }}>
             {group.name}
           </Typography>
           <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
@@ -258,8 +264,15 @@ const GroupDetail = () => {
         </Box>
       </Box>
 
-      <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3 }}>
-        <Paper sx={{ mb: 4 }}>
+      {/* Content */}
+      <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3, py: 3 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+            {error}
+          </Alert>
+        )}
+
+        <Paper>
           <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
             <Tab label="Übersicht" />
             <Tab label="Reisevorschläge" />
@@ -267,220 +280,209 @@ const GroupDetail = () => {
           </Tabs>
 
           <Box sx={{ p: 3 }}>
+            {/* Übersicht Tab */}
             {activeTab === 0 && (
-              <>
-                <Typography variant="h6" gutterBottom>Gruppendetails</Typography>
-                <Stack spacing={2}>
-                  <Box>
-                    <Typography variant="subtitle2">Reisezeitraum</Typography>
-                    <Typography>
-                      {new Date(group.travelPeriod.start).toLocaleDateString()} - {new Date(group.travelPeriod.end).toLocaleDateString()}
-                    </Typography>
-                  </Box>
+              <Stack spacing={3}>
+                <Typography variant="h6">Gruppendetails</Typography>
+                
+                {/* Reisezeitraum */}
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Reisezeitraum
+                  </Typography>
+                  <Typography>
+                    {group.travelDateFrom && group.travelDateTo ? (
+                      `${new Date(group.travelDateFrom).toLocaleDateString()} - ${new Date(group.travelDateTo).toLocaleDateString()}`
+                    ) : (
+                      'Noch nicht festgelegt'
+                    )}
+                  </Typography>
+                </Box>
 
-                  <Box>
-                    <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      Präferenzen
+                {/* Budget */}
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Budget pro Person
+                  </Typography>
+                  <Typography>
+                    {group.budgetMin}€ - {group.budgetMax}€
+                  </Typography>
+                </Box>
+
+                {/* Präferenzen */}
+                <Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle2">
+                      Reisepräferenzen
+                    </Typography>
+                    {isAdmin && (
                       <Button
                         startIcon={<AddIcon />}
                         onClick={() => setAddPreferenceOpen(true)}
-                        variant="outlined"
                         size="small"
+                        variant="outlined"
                       >
-                        Präferenz hinzufügen
+                        Hinzufügen
                       </Button>
-                    </Typography>
-                    
-                    {group.preferences && (
-                      <Box sx={{ mt: 2 }}>
-                        {group.preferences.budget && (
-                          <Chip
-                            label={`Budget: ${group.preferences.budget[0]}€ - ${group.preferences.budget[1]}€`}
-                            onDelete={() => handleDeletePreference('budget', null)}
-                            sx={{ m: 0.5 }}
-                          />
-                        )}
-                        
-                        {group.preferences.travelType?.map(type => (
-                          <Chip
-                            key={type}
-                            label={type}
-                            onDelete={() => handleDeletePreference('travelType', type)}
-                            sx={{ m: 0.5 }}
-                          />
-                        ))}
-                        
-                        {group.preferences.activities?.map(activity => (
-                          <Chip
-                            key={activity}
-                            label={activity}
-                            onDelete={() => handleDeletePreference('activities', activity)}
-                            sx={{ m: 0.5 }}
-                          />
-                        ))}
-                      </Box>
                     )}
                   </Box>
+                  
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    {group.preferences?.length > 0 ? (
+                      group.preferences.map(preference => (
+                        <Chip
+                          key={preference}
+                          label={preference}
+                          onDelete={isAdmin ? () => handleDeletePreference(preference) : undefined}
+                          color="primary"
+                          variant="outlined"
+                        />
+                      ))
+                    ) : (
+                      <Typography color="text.secondary">
+                        Noch keine Präferenzen festgelegt
+                      </Typography>
+                    )}
+                  </Box>
+                </Box>
 
-                  <Box>
-                    <Typography variant="subtitle2">Teilnehmer</Typography>
-                    <Typography>
-                      {group.members.length} von maximal {group.maxParticipants} Teilnehmern
+                {/* Status und Teilnehmer */}
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Status
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <Chip 
+                      label={group.status || 'planning'} 
+                      color={group.status === 'planning' ? 'warning' : 'success'}
+                    />
+                    <Typography variant="body2">
+                      {group.members?.length || 0} / {group.maxParticipants} Teilnehmer
                     </Typography>
                   </Box>
-                </Stack>
-              </>
+                </Box>
+
+                {/* Aktionen */}
+                <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                  <Stack direction="row" spacing={2}>
+                    {!isAdmin && (
+                      <Button 
+                        variant="outlined" 
+                        color="error"
+                        onClick={handleLeaveGroup}
+                      >
+                        Gruppe verlassen
+                      </Button>
+                    )}
+                  </Stack>
+                </Box>
+              </Stack>
             )}
 
+            {/* Reisevorschläge Tab */}
             {activeTab === 1 && (
-              <>
-                <TravelProposal
-                  groupId={id}
-                  isAdmin={isAdmin}
-                  onProposalAdded={handleProposalAdded}
-                />
-                <TravelProposalList
-                  proposals={group.travelProposals}
-                  groupId={id}
-                  isAdmin={isAdmin}
-                  onVote={handleProposalVote}
-                />
-              </>
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Reisevorschläge
+                </Typography>
+                <Alert severity="info">
+                  Reisevorschläge-Funktionalität wird bald verfügbar sein.
+                </Alert>
+              </Box>
             )}
 
+            {/* Mitglieder Tab */}
             {activeTab === 2 && (
-              <>
-                <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  Mitglieder
+              <Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">
+                    Mitglieder ({group.members?.length || 0})
+                  </Typography>
                   {isAdmin && (
                     <Button
                       startIcon={<PersonAddIcon />}
                       onClick={() => setAddMemberOpen(true)}
                       variant="outlined"
-                      size="small"
                     >
                       Mitglied hinzufügen
                     </Button>
                   )}
-                </Typography>
+                </Box>
+
                 <List>
-                  {group.members.map((member) => (
-                    <ListItem
-                      key={member.email}
-                      secondaryAction={
-                        <>
-                          {isAdmin && (
-                            <FormControl size="small" sx={{ minWidth: 120, mr: 2 }}>
-                              <Select
-                                value={member.role}
-                                onChange={(e) => handleMemberRoleChange(member.email, e.target.value)}
-                              >
-                                <MenuItem value="admin">Admin</MenuItem>
-                                <MenuItem value="member">Mitglied</MenuItem>
-                              </Select>
-                            </FormControl>
-                          )}
-                          {isAdmin && member.role !== 'admin' && (
-                            <IconButton 
-                              edge="end" 
-                              aria-label="delete"
-                              onClick={() => handleRemoveMember(member.email)}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          )}
-                        </>
-                      }
-                    >
-                      <ListItemText
-                        primary={member.email}
-                        secondary={member.role === 'admin' ? 'Administrator' : 'Mitglied'}
-                      />
-                    </ListItem>
-                  ))}
+                  {group.members?.map((member, index) => {
+                    const memberUser = member.user;
+                    const displayName = memberUser?.name || memberUser?.email || `Mitglied ${index + 1}`;
+                    const displayEmail = memberUser?.email || 'Keine E-Mail';
+                    
+                    return (
+                      <ListItem key={index} divider>
+                        <ListItemText
+                          primary={displayName}
+                          secondary={
+                            <Box>
+                              <Typography component="span" variant="body2">
+                                {displayEmail}
+                              </Typography>
+                              <br />
+                              <Chip 
+                                label={member.role === 'admin' ? 'Administrator' : 'Mitglied'} 
+                                size="small"
+                                color={member.role === 'admin' ? 'primary' : 'default'}
+                                variant="outlined"
+                              />
+                            </Box>
+                          }
+                        />
+                      </ListItem>
+                    );
+                  })}
                 </List>
-              </>
+              </Box>
             )}
           </Box>
         </Paper>
       </Box>
 
-      {/* Dialog zum Bearbeiten der Präferenzen */}
-      <Dialog
-        open={editPreferencesOpen}
-        onClose={() => setEditPreferencesOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>Präferenzen bearbeiten</DialogTitle>
-        <DialogContent>
-          {/* Hier Präferenzen-Formular einfügen, ähnlich wie in CreateGroup */}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditPreferencesOpen(false)}>Abbrechen</Button>
-          <Button variant="contained" onClick={handlePreferencesSubmit}>Speichern</Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Dialog zum Hinzufügen neuer Präferenzen */}
+      {/* Dialog: Präferenz hinzufügen */}
       <Dialog open={addPreferenceOpen} onClose={() => setAddPreferenceOpen(false)}>
         <DialogTitle>Neue Präferenz hinzufügen</DialogTitle>
         <DialogContent>
-          <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
-            <InputLabel>Präferenztyp</InputLabel>
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>Präferenz auswählen</InputLabel>
             <Select
-              value={preferenceType}
-              onChange={(e) => setPreferenceType(e.target.value)}
-              label="Präferenztyp"
+              value={newPreference}
+              onChange={(e) => setNewPreference(e.target.value)}
+              label="Präferenz auswählen"
             >
-              <MenuItem value="travelType">Reiseart</MenuItem>
-              <MenuItem value="activities">Aktivitäten</MenuItem>
+              {availablePreferences
+                .filter(pref => !group.preferences?.includes(pref))
+                .map((pref) => (
+                  <MenuItem key={pref} value={pref}>
+                    {pref}
+                  </MenuItem>
+                ))}
             </Select>
           </FormControl>
-
-          {preferenceType === 'travelType' && (
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Reiseart</InputLabel>
-              <Select
-                value={newPreference}
-                onChange={(e) => setNewPreference(e.target.value)}
-                label="Reiseart"
-              >
-                {travelTypes.map((type) => (
-                  <MenuItem key={type} value={type}>{type}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-
-          {preferenceType === 'activities' && (
-            <FormControl fullWidth sx={{ mb: 2 }}>
-              <InputLabel>Aktivität</InputLabel>
-              <Select
-                value={newPreference}
-                onChange={(e) => setNewPreference(e.target.value)}
-                label="Aktivität"
-              >
-                {activities.map((activity) => (
-                  <MenuItem key={activity} value={activity}>{activity}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddPreferenceOpen(false)}>Abbrechen</Button>
+          <Button onClick={() => {
+            setAddPreferenceOpen(false);
+            setNewPreference('');
+          }}>
+            Abbrechen
+          </Button>
           <Button 
             onClick={handleAddPreference} 
             variant="contained"
-            disabled={!preferenceType || !newPreference}
+            disabled={!newPreference}
           >
             Hinzufügen
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Dialog zum Hinzufügen neuer Mitglieder */}
+      {/* Dialog: Mitglied hinzufügen */}
       <Dialog open={addMemberOpen} onClose={() => {
         setAddMemberOpen(false);
         setAddMemberError('');
@@ -513,7 +515,7 @@ const GroupDetail = () => {
           <Button 
             onClick={handleAddMember}
             variant="contained"
-            disabled={!newMemberEmail || !!addMemberError}
+            disabled={!newMemberEmail.trim()}
           >
             Hinzufügen
           </Button>

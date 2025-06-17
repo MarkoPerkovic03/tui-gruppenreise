@@ -17,7 +17,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routen
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/profile', require('./routes/profile')); // ← DIESE ZEILE HINZUFÜGEN!
+app.use('/api/users', require('./routes/auth')); // ← NEU: Für /users Endpunkt (verwendet auth.js)
+app.use('/api/profile', require('./routes/profile'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));
 app.use('/api/travel-offers', require('./routes/travelOffers'));
@@ -42,4 +43,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Server läuft auf Port ${PORT}`);
   console.log(`📊 API Dokumentation verfügbar unter http://localhost:${PORT}/api`);
   console.log(`👤 Profile API verfügbar unter http://localhost:${PORT}/api/profile`);
+  console.log(`👥 Users API verfügbar unter http://localhost:${PORT}/api/users`);
+  console.log(`🏠 Groups API verfügbar unter http://localhost:${PORT}/api/groups`);
 });

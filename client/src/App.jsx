@@ -6,18 +6,16 @@ import CreateGroup from './components/CreateGroup';
 import GroupDetail from './components/GroupDetail';
 import Login from './components/Login';
 import TravelOffers from './components/TravelOffers';
-import UserProfile from './components/UserProfile'; // ← NEU HINZUGEFÜGT
+import UserProfile from './components/UserProfile';
 import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import HotelIcon from '@mui/icons-material/Hotel';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // ← NEU HINZUGEFÜGT
-// import LocationOnIcon from '@mui/icons-material/LocationOn'; // ← ENTFERNT (nicht mehr benötigt)
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import { useState, useEffect, createContext, useContext } from 'react';
 import AdminDashboard from './components/AdminDashboard';
 import AdminTravelOffers from './components/AdminTravelOffers'; 
-// import AdminDestinations from './components/AdminDestinations'; // ← ENTFERNT
 
 // Context für Authentifizierung
 const AuthContext = createContext();
@@ -210,7 +208,6 @@ function App() {
                     >
                       Reiseangebote
                     </Button>
-                    {/* ===== NEU: PROFIL BUTTON HINZUGEFÜGT ===== */}
                     <Button
                       component={Link}
                       to="/profile"
@@ -232,7 +229,6 @@ function App() {
                         >
                           Angebote verwalten
                         </Button>
-                        {/* ENTFERNT: "Reiseziele verwalten" Button */}
                         <Button
                           component={Link}
                           to="/admin/dashboard"
@@ -284,7 +280,7 @@ function App() {
                   }
                 />
                 <Route
-                  path="/group/:id"
+                  path="/groups/:id"
                   element={
                     <PrivateRoute>
                       <GroupDetail />
@@ -299,7 +295,6 @@ function App() {
                     </PrivateRoute>
                   }
                 />
-                {/* ===== NEU: PROFIL ROUTE HINZUGEFÜGT ===== */}
                 <Route
                   path="/profile"
                   element={
@@ -317,7 +312,6 @@ function App() {
                     </PrivateRoute>
                   }
                 />
-                {/* ENTFERNT: AdminDestinations Route */}
                 <Route
                   path="/admin/dashboard"
                   element={

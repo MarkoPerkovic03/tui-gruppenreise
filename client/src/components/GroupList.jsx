@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../utils/api'; // KORRIGIERT: Verwende die konfigurierte API
+import api from '../utils/api';
 import { 
   Card, 
   Button, 
@@ -9,7 +9,8 @@ import {
   Paper,
   Chip,
   IconButton,
-  Divider
+  Divider,
+  Alert
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import GroupIcon from '@mui/icons-material/Group';
@@ -19,24 +20,81 @@ import { useNavigate } from 'react-router-dom';
 
 const GroupList = () => {
   const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchGroups = async () => {
       try {
-        // KORRIGIERT: Verwende api statt axios und /groups statt /api/groups
+        setLoading(true);
+        setError('');
+        
+        console.log('🔍 Lade Gruppen...');
         const response = await api.get('/groups');
-        setGroups(response.data);
+        console.log('📡 API Response:', response.data);
+        
+        // Debug: Prüfe jede Gruppe
+        if (response.data && Array.isArray(response.data)) {
+          response.data.forEach((group, index) => {
+            console.log(`Gruppe ${index}:`, {
+              _id: group._id,
+              id: group.id,
+              name: group.name,
+              hasValidId: !!(group._id || group.id),
+              fullObject: group
+            });
+            
+            // Warnung bei ungültigen IDs
+            if (!group._id && !group.id) {
+              console.error(`❌ FEHLER: Gruppe ${index} hat keine gültige ID!`, group);
+            }
+          });
+        }
+        
+        setGroups(response.data || []);
       } catch (error) {
-        console.error('Fehler beim Laden der Gruppen:', error);
+        console.error('❌ Fehler beim Laden der Gruppen:', error);
+        setError('Fehler beim Laden der Gruppen. Bitte versuchen Sie es erneut.');
+      } finally {
+        setLoading(false);
       }
     };
+    
     fetchGroups();
   }, []);
 
   const handleCreateGroup = () => {
     navigate('/groups/create');
   };
+
+  const handleGroupClick = (group) => {
+    // KORRIGIERT: Sichere ID-Extraktion und Navigation
+    const groupId = group._id || group.id;
+    
+    console.log('🎯 Navigiere zu Gruppe:', {
+      group,
+      extractedId: groupId,
+      idExists: !!groupId
+    });
+    
+    if (!groupId) {
+      console.error('❌ Gruppe hat keine gültige ID:', group);
+      setError('Diese Gruppe hat keine gültige ID und kann nicht geöffnet werden.');
+      return;
+    }
+    
+    // KORRIGIERT: Verwende /groups/:id Route
+    navigate(`/groups/${groupId}`);
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3, textAlign: 'center' }}>
+        <Typography>Lade Gruppen...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <>
@@ -66,6 +124,12 @@ const GroupList = () => {
       </Box>
       
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: 3 }}>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+        )}
+
         <Grid container spacing={3}>
           {groups.length === 0 ? (
             <Grid item xs={12}>
@@ -87,57 +151,107 @@ const GroupList = () => {
               </Paper>
             </Grid>
           ) : (
-            groups.map((group) => (
-              <Grid item xs={12} sm={6} md={4} key={group.id}>
-                <Card 
-                  sx={{ 
-                    p: 0,
-                    cursor: 'pointer',
-                    '&:hover': { 
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)'
-                    },
-                    transition: 'all 0.3s ease'
-                  }}
-                >
-                  <Box sx={{ p: 2 }}>
-                    <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
-                      {group.name}
-                    </Typography>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                      <GroupIcon sx={{ fontSize: 20, color: 'text.secondary', mr: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        {group.members.length} {group.members.length === 1 ? 'Mitglied' : 'Mitglieder'}
-                      </Typography>
-                    </Box>
-                    
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <CalendarTodayIcon sx={{ fontSize: 20, color: 'text.secondary', mr: 1 }} />
-                      <Typography variant="body2" color="text.secondary">
-                        Erstellt am {new Date(group.createdAt).toLocaleDateString()}
-                      </Typography>
-                    </Box>
-                  </Box>
-                  
-                  <Divider />
-                  
-                  <Box sx={{ p: 2, backgroundColor: 'rgba(0, 87, 184, 0.02)' }}>
-                    <Button
-                      fullWidth
-                      onClick={() => navigate(`/group/${group.id}`)}
-                      endIcon={<ArrowForwardIcon />}
-                      sx={{
-                        justifyContent: 'space-between',
-                        color: 'primary.main'
+            groups.map((group, index) => {
+              // SICHERHEITSCHECK: Überspringen falls keine gültige ID
+              const groupId = group._id || group.id;
+              
+              if (!groupId) {
+                console.error(`⚠️ Überspringe Gruppe ${index} ohne ID:`, group);
+                return (
+                  <Grid item xs={12} sm={6} md={4} key={`invalid-${index}`}>
+                    <Card 
+                      sx={{ 
+                        p: 2,
+                        border: '2px solid red',
+                        backgroundColor: 'rgba(255, 0, 0, 0.1)'
                       }}
                     >
-                      Gruppe öffnen
-                    </Button>
-                  </Box>
-                </Card>
-              </Grid>
-            ))
+                      <Typography color="error" variant="h6">
+                        ⚠️ Fehlerhafte Gruppe
+                      </Typography>
+                      <Typography variant="body2">
+                        Diese Gruppe hat keine gültige ID: {group.name || 'Unbekannt'}
+                      </Typography>
+                    </Card>
+                  </Grid>
+                );
+              }
+
+              return (
+                <Grid item xs={12} sm={6} md={4} key={groupId}>
+                  <Card 
+                    sx={{ 
+                      p: 0,
+                      cursor: 'pointer',
+                      '&:hover': { 
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.12)'
+                      },
+                      transition: 'all 0.3s ease'
+                    }}
+                  >
+                    <Box sx={{ p: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+                        {group.name}
+                      </Typography>
+                      
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <GroupIcon sx={{ fontSize: 20, color: 'text.secondary', mr: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {group.members?.length || 0} {(group.members?.length || 0) === 1 ? 'Mitglied' : 'Mitglieder'}
+                        </Typography>
+                      </Box>
+                      
+                      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                        <CalendarTodayIcon sx={{ fontSize: 20, color: 'text.secondary', mr: 1 }} />
+                        <Typography variant="body2" color="text.secondary">
+                          {group.createdAt ? 
+                            `Erstellt am ${new Date(group.createdAt).toLocaleDateString()}` :
+                            'Erstellungsdatum unbekannt'
+                          }
+                        </Typography>
+                      </Box>
+
+                      {group.description && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          {group.description}
+                        </Typography>
+                      )}
+
+                      {/* Status Chip */}
+                      {group.status && (
+                        <Chip 
+                          label={group.status} 
+                          color={group.status === 'planning' ? 'warning' : 'success'}
+                          size="small"
+                          sx={{ mb: 2 }}
+                        />
+                      )}
+                    </Box>
+                    
+                    <Divider />
+                    
+                    <Box sx={{ p: 2, backgroundColor: 'rgba(0, 87, 184, 0.02)' }}>
+                      <Button
+                        fullWidth
+                        onClick={(e) => {
+                          e.preventDefault();
+                          console.log('🔗 Button Click - Gruppe:', group.name, 'ID:', groupId);
+                          handleGroupClick(group);
+                        }}
+                        endIcon={<ArrowForwardIcon />}
+                        sx={{
+                          justifyContent: 'space-between',
+                          color: 'primary.main'
+                        }}
+                      >
+                        Gruppe öffnen
+                      </Button>
+                    </Box>
+                  </Card>
+                </Grid>
+              );
+            })
           )}
         </Grid>
       </Box>
