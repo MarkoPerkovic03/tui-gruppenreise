@@ -1,4 +1,4 @@
-// backend/routes/proposals.js
+// backend/routes/proposals.js - OPTIMIERTE VERSION
 const express = require('express');
 const router = express.Router();
 const Group = require('../models/Group');
@@ -46,28 +46,23 @@ router.get('/group/:groupId', auth, async (req, res) => {
   }
 });
 
-// POST /api/proposals - Neuen Reisevorschlag erstellen
+// POST /api/proposals - Neuen Reisevorschlag erstellen (NUR AUS TRAVEL OFFERS)
 router.post('/', auth, async (req, res) => {
   try {
     const {
       groupId,
-      destinationId,
       travelOfferId,
-      hotelName,
-      hotelUrl,
-      pricePerPerson,
       departureDate,
       returnDate,
-      description,
-      includesFlight,
-      includesTransfer,
-      mealPlan
+      description
     } = req.body;
     
+    console.log('🆕 Erstelle Proposal aus TravelOffer:', { groupId, travelOfferId, departureDate, returnDate });
+    
     // Validierung
-    if (!groupId || (!destinationId && !travelOfferId) || !pricePerPerson || !departureDate || !returnDate) {
+    if (!groupId || !travelOfferId || !departureDate || !returnDate) {
       return res.status(400).json({ 
-        message: 'Pflichtfelder: groupId, destination/travelOffer, pricePerPerson, departureDate, returnDate' 
+        message: 'Pflichtfelder: groupId, travelOfferId, departureDate, returnDate' 
       });
     }
     
@@ -85,58 +80,82 @@ router.post('/', auth, async (req, res) => {
       return res.status(403).json({ message: 'Nur Gruppenmitglieder können Vorschläge erstellen' });
     }
     
-    // Bestimme Destination
-    let destination;
-    if (travelOfferId) {
-      const travelOffer = await TravelOffer.findById(travelOfferId);
-      if (!travelOffer) {
-        return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
-      }
-      
-      // Suche oder erstelle Destination basierend auf TravelOffer
-      destination = await Destination.findOne({ 
+    // Lade das TravelOffer mit allen Daten
+    const travelOffer = await TravelOffer.findById(travelOfferId);
+    if (!travelOffer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+    
+    console.log('📄 TravelOffer gefunden:', {
+      title: travelOffer.title,
+      destination: travelOffer.destination,
+      pricePerPerson: travelOffer.pricePerPerson
+    });
+    
+    // Suche oder erstelle Destination basierend auf TravelOffer
+    let destination = await Destination.findOne({ 
+      name: travelOffer.destination,
+      country: travelOffer.country 
+    });
+    
+    if (!destination) {
+      console.log('🌍 Erstelle neue Destination:', travelOffer.destination);
+      destination = await Destination.create({
         name: travelOffer.destination,
-        country: travelOffer.country 
+        country: travelOffer.country,
+        city: travelOffer.city || '',
+        description: travelOffer.description || '',
+        images: travelOffer.images?.map(img => img.url || img) || [],
+        avgPricePerPerson: travelOffer.pricePerPerson,
+        tags: travelOffer.tags || []
       });
-      
-      if (!destination) {
-        destination = await Destination.create({
-          name: travelOffer.destination,
-          country: travelOffer.country,
-          city: travelOffer.city || '',
-          description: travelOffer.description || '',
-          images: travelOffer.images?.map(img => img.url || img) || [],
-          avgPricePerPerson: travelOffer.pricePerPerson,
-          tags: travelOffer.tags || []
-        });
-      }
-    } else {
-      destination = await Destination.findById(destinationId);
-      if (!destination) {
-        return res.status(404).json({ message: 'Reiseziel nicht gefunden' });
-      }
     }
     
     // Berechne Gesamtpreis
-    const totalPrice = pricePerPerson * group.maxParticipants;
+    const totalPrice = travelOffer.pricePerPerson * group.maxParticipants;
     
+    // Bestimme Meal Plan basierend auf TravelOffer amenities
+    let mealPlan = 'breakfast'; // Default
+    if (travelOffer.amenities) {
+      if (travelOffer.amenities.includes('All-Inclusive')) {
+        mealPlan = 'all_inclusive';
+      } else if (travelOffer.amenities.includes('Vollpension')) {
+        mealPlan = 'full_board';
+      } else if (travelOffer.amenities.includes('Halbpension')) {
+        mealPlan = 'half_board';
+      } else if (travelOffer.amenities.includes('Nur Frühstück')) {
+        mealPlan = 'breakfast';
+      }
+    }
+    
+    // Erstelle Proposal mit automatisch übernommenen Daten
     const proposal = new Proposal({
       group: groupId,
       destination: destination._id,
       proposedBy: req.user.id,
-      hotelName: hotelName || '',
-      hotelUrl: hotelUrl || '',
-      pricePerPerson: Number(pricePerPerson),
+      
+      // AUTOMATISCH AUS TRAVELOFFER ÜBERNOMMEN:
+      hotelName: travelOffer.title, // Hotel/Unterkunft Name
+      hotelUrl: travelOffer.hotelUrl || '', // Falls vorhanden
+      pricePerPerson: travelOffer.pricePerPerson, // Automatisch übernommen!
       totalPrice,
+      mealPlan, // Automatisch bestimmt
+      
+      // VOM USER EINGEGEBEN:
       departureDate: new Date(departureDate),
       returnDate: new Date(returnDate),
-      description: description || '',
-      includesFlight: includesFlight !== false,
-      includesTransfer: includesTransfer !== false,
-      mealPlan: mealPlan || 'breakfast'
+      description: description || `${travelOffer.title} - ${travelOffer.destination}`,
+      
+      // STANDARDWERTE (können später angepasst werden):
+      includesFlight: true, // Default
+      includesTransfer: true, // Default
+      
+      // REFERENZ ZUM ORIGINAL TRAVELOFFER:
+      originalTravelOffer: travelOfferId // Für spätere Referenz
     });
     
     const savedProposal = await proposal.save();
+    console.log('✅ Proposal erstellt:', savedProposal._id);
     
     const populatedProposal = await Proposal.findById(savedProposal._id)
       .populate('destination', 'name country city')
@@ -144,7 +163,7 @@ router.post('/', auth, async (req, res) => {
     
     res.status(201).json(populatedProposal);
   } catch (error) {
-    console.error('Fehler beim Erstellen des Vorschlags:', error);
+    console.error('❌ Fehler beim Erstellen des Vorschlags:', error);
     res.status(500).json({ message: 'Server-Fehler beim Erstellen des Vorschlags' });
   }
 });
@@ -319,6 +338,8 @@ router.post('/group/:groupId/start-voting', auth, async (req, res) => {
     
     await group.save();
     
+    console.log('🗳️ Abstimmung gestartet für Gruppe:', group.name);
+    
     res.json({ message: 'Abstimmungsphase gestartet', group });
   } catch (error) {
     console.error('Fehler beim Starten der Abstimmung:', error);
@@ -361,6 +382,8 @@ router.post('/group/:groupId/end-voting', auth, async (req, res) => {
     group.winningProposal = winningProposal._id;
     
     await group.save();
+    
+    console.log('🏆 Abstimmung beendet - Gewinner:', winningProposal.destination.name);
     
     res.json({ 
       message: 'Abstimmung beendet', 

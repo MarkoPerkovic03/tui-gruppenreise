@@ -1,4 +1,4 @@
-// client/src/components/ProposalManager.jsx
+// client/src/components/ProposalManager.jsx - OPTIMIERTE VERSION
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -22,16 +22,15 @@ import {
   Rating,
   Alert,
   Stack,
-  Fab,
   LinearProgress,
-  Divider,
   IconButton,
   List,
   ListItem,
   ListItemText,
   ListItemAvatar,
   Avatar,
-  Badge
+  CardMedia,
+  Autocomplete
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,7 +46,8 @@ import {
   LocationOn as LocationIcon,
   CalendarToday as CalendarIcon,
   ThumbUp as ThumbUpIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Visibility as ViewIcon
 } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -58,27 +58,20 @@ import deLocale from 'date-fns/locale/de';
 const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
   const { user } = useAuth();
   const [proposals, setProposals] = useState([]);
-  const [destinations, setDestinations] = useState([]);
   const [travelOffers, setTravelOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [createDialog, setCreateDialog] = useState(false);
+  const [offerPreviewDialog, setOfferPreviewDialog] = useState(false);
   const [votingDialog, setVotingDialog] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState(null);
   const [selectedProposal, setSelectedProposal] = useState(null);
   
   const [proposalData, setProposalData] = useState({
-    sourceType: 'destination', // 'destination' oder 'travelOffer'
-    destinationId: '',
     travelOfferId: '',
-    hotelName: '',
-    hotelUrl: '',
-    pricePerPerson: '',
     departureDate: null,
     returnDate: null,
-    description: '',
-    includesFlight: true,
-    includesTransfer: true,
-    mealPlan: 'breakfast'
+    description: ''
   });
 
   const [votingData, setVotingData] = useState({
@@ -91,7 +84,6 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
 
   useEffect(() => {
     loadProposals();
-    loadDestinations();
     loadTravelOffers();
   }, [groupId]);
 
@@ -109,15 +101,6 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
     }
   };
 
-  const loadDestinations = async () => {
-    try {
-      const response = await api.get('/destinations');
-      setDestinations(response.data.destinations || response.data);
-    } catch (error) {
-      console.error('Fehler beim Laden der Reiseziele:', error);
-    }
-  };
-
   const loadTravelOffers = async () => {
     try {
       const response = await api.get('/travel-offers');
@@ -127,48 +110,53 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
     }
   };
 
+  const handleOfferSelection = (offer) => {
+    setSelectedOffer(offer);
+    setProposalData({
+      travelOfferId: offer._id,
+      departureDate: null,
+      returnDate: null,
+      description: ''
+    });
+  };
+
   const handleCreateProposal = async () => {
     try {
       setError('');
       
-      if (!proposalData.pricePerPerson || !proposalData.departureDate || !proposalData.returnDate) {
-        setError('Bitte füllen Sie alle Pflichtfelder aus');
+      if (!proposalData.travelOfferId || !proposalData.departureDate || !proposalData.returnDate) {
+        setError('Bitte wählen Sie ein Reiseangebot und geben Sie die Reisedaten an');
         return;
       }
 
-      if (proposalData.sourceType === 'destination' && !proposalData.destinationId) {
-        setError('Bitte wählen Sie ein Reiseziel aus');
-        return;
-      }
-
-      if (proposalData.sourceType === 'travelOffer' && !proposalData.travelOfferId) {
-        setError('Bitte wählen Sie ein Reiseangebot aus');
+      if (new Date(proposalData.returnDate) <= new Date(proposalData.departureDate)) {
+        setError('Das Rückreisedatum muss nach dem Abreisedatum liegen');
         return;
       }
 
       const submitData = {
         groupId,
-        ...proposalData,
-        destinationId: proposalData.sourceType === 'destination' ? proposalData.destinationId : undefined,
-        travelOfferId: proposalData.sourceType === 'travelOffer' ? proposalData.travelOfferId : undefined
+        travelOfferId: proposalData.travelOfferId,
+        departureDate: proposalData.departureDate,
+        returnDate: proposalData.returnDate,
+        description: proposalData.description || '',
+        // Diese Felder werden automatisch aus dem TravelOffer übernommen:
+        // - pricePerPerson
+        // - hotelName  
+        // - destination
+        // - mealPlan
+        // - etc.
       };
 
       await api.post('/proposals', submitData);
       
       setCreateDialog(false);
+      setSelectedOffer(null);
       setProposalData({
-        sourceType: 'destination',
-        destinationId: '',
         travelOfferId: '',
-        hotelName: '',
-        hotelUrl: '',
-        pricePerPerson: '',
         departureDate: null,
         returnDate: null,
-        description: '',
-        includesFlight: true,
-        includesTransfer: true,
-        mealPlan: 'breakfast'
+        description: ''
       });
       
       await loadProposals();
@@ -297,7 +285,7 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
                   startIcon={<AddIcon />}
                   onClick={() => setCreateDialog(true)}
                 >
-                  Vorschlag hinzufügen
+                  Reiseangebot vorschlagen
                 </Button>
               )}
               
@@ -351,7 +339,7 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
               Noch keine Reisevorschläge vorhanden
             </Typography>
             <Typography color="text.secondary" gutterBottom>
-              Erstellen Sie den ersten Vorschlag für Ihre Gruppe!
+              Wählen Sie aus unseren verfügbaren Reiseangeboten!
             </Typography>
             {group?.status === 'planning' && (
               <Button
@@ -550,192 +538,179 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
           </Grid>
         )}
 
-        {/* Create Proposal Dialog */}
+        {/* Create Proposal Dialog - NUR REISEANGEBOTE */}
         <Dialog open={createDialog} onClose={() => setCreateDialog(false)} maxWidth="md" fullWidth>
-          <DialogTitle>Neuen Reisevorschlag erstellen</DialogTitle>
+          <DialogTitle>Reiseangebot vorschlagen</DialogTitle>
           <DialogContent>
-            <Grid container spacing={2} sx={{ mt: 1 }}>
-              {/* Source Type Selection */}
-              <Grid item xs={12}>
-                <FormControl fullWidth>
-                  <InputLabel>Quelle</InputLabel>
-                  <Select
-                    value={proposalData.sourceType}
-                    onChange={(e) => setProposalData({...proposalData, sourceType: e.target.value})}
-                    label="Quelle"
-                  >
-                    <MenuItem value="destination">Reiseziel auswählen</MenuItem>
-                    <MenuItem value="travelOffer">Reiseangebot auswählen</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Destination Selection */}
-              {proposalData.sourceType === 'destination' && (
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Reiseziel</InputLabel>
-                    <Select
-                      value={proposalData.destinationId}
-                      onChange={(e) => setProposalData({...proposalData, destinationId: e.target.value})}
-                      label="Reiseziel"
-                      required
-                    >
-                      {destinations.map((dest) => (
-                        <MenuItem key={dest._id} value={dest._id}>
-                          {dest.name}, {dest.country}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
+            {!selectedOffer ? (
+              // Schritt 1: Reiseangebot auswählen
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                  Verfügbare Reiseangebote
+                </Typography>
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Wählen Sie ein Reiseangebot aus unserer Kollektion
+                </Typography>
+                
+                <Grid container spacing={2} sx={{ mt: 1, maxHeight: 400, overflow: 'auto' }}>
+                  {travelOffers.map((offer) => (
+                    <Grid item xs={12} key={offer._id}>
+                      <Card 
+                        sx={{ 
+                          cursor: 'pointer',
+                          '&:hover': { 
+                            backgroundColor: 'action.hover',
+                            transform: 'translateY(-2px)',
+                            boxShadow: 2
+                          },
+                          transition: 'all 0.2s'
+                        }}
+                        onClick={() => handleOfferSelection(offer)}
+                      >
+                        <CardContent>
+                          <Grid container spacing={2}>
+                            <Grid item xs={3}>
+                              {offer.images?.[0] && (
+                                <img 
+                                  src={offer.images[0].url || offer.images[0]}
+                                  alt={offer.title}
+                                  style={{ 
+                                    width: '100%', 
+                                    height: '80px', 
+                                    objectFit: 'cover',
+                                    borderRadius: '4px'
+                                  }}
+                                />
+                              )}
+                            </Grid>
+                            <Grid item xs={9}>
+                              <Typography variant="h6">{offer.title}</Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {offer.destination}, {offer.country}
+                              </Typography>
+                              <Box display="flex" alignItems="center" gap={2} mt={1}>
+                                <Chip label={offer.category} size="small" />
+                                <Typography variant="h6" color="primary">
+                                  €{offer.pricePerPerson}/Person
+                                </Typography>
+                                {offer.stars && (
+                                  <Rating value={offer.stars} precision={0.5} readOnly size="small" />
+                                )}
+                              </Box>
+                            </Grid>
+                          </Grid>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
                 </Grid>
-              )}
-
-              {/* Travel Offer Selection */}
-              {proposalData.sourceType === 'travelOffer' && (
-                <Grid item xs={12}>
-                  <FormControl fullWidth>
-                    <InputLabel>Reiseangebot</InputLabel>
-                    <Select
-                      value={proposalData.travelOfferId}
-                      onChange={(e) => setProposalData({...proposalData, travelOfferId: e.target.value})}
-                      label="Reiseangebot"
-                      required
-                    >
-                      {travelOffers.map((offer) => (
-                        <MenuItem key={offer._id} value={offer._id}>
-                          {offer.title} - {offer.destination} (€{offer.pricePerPerson})
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                </Grid>
-              )}
-
-              {/* Hotel Info */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Hotel/Unterkunft"
-                  value={proposalData.hotelName}
-                  onChange={(e) => setProposalData({...proposalData, hotelName: e.target.value})}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Hotel Website/Buchungslink"
-                  value={proposalData.hotelUrl}
-                  onChange={(e) => setProposalData({...proposalData, hotelUrl: e.target.value})}
-                />
-              </Grid>
-
-              {/* Price */}
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  fullWidth
-                  label="Preis pro Person (€)"
-                  type="number"
-                  value={proposalData.pricePerPerson}
-                  onChange={(e) => setProposalData({...proposalData, pricePerPerson: e.target.value})}
-                  required
-                />
-              </Grid>
-
-              {/* Meal Plan */}
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth>
-                  <InputLabel>Verpflegung</InputLabel>
-                  <Select
-                    value={proposalData.mealPlan}
-                    onChange={(e) => setProposalData({...proposalData, mealPlan: e.target.value})}
-                    label="Verpflegung"
-                  >
-                    <MenuItem value="none">Ohne Verpflegung</MenuItem>
-                    <MenuItem value="breakfast">Nur Frühstück</MenuItem>
-                    <MenuItem value="half_board">Halbpension</MenuItem>
-                    <MenuItem value="full_board">Vollpension</MenuItem>
-                    <MenuItem value="all_inclusive">All Inclusive</MenuItem>
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              {/* Dates */}
-              <Grid item xs={12} sm={6}>
-                <DatePicker
-                  label="Abreisedatum"
-                  value={proposalData.departureDate}
-                  onChange={(date) => setProposalData({...proposalData, departureDate: date})}
-                  renderInput={(params) => <TextField {...params} fullWidth required />}
-                  minDate={new Date()}
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <DatePicker
-                  label="Rückreisedatum"
-                  value={proposalData.returnDate}
-                  onChange={(date) => setProposalData({...proposalData, returnDate: date})}
-                  renderInput={(params) => <TextField {...params} fullWidth required />}
-                  minDate={proposalData.departureDate || new Date()}
-                />
-              </Grid>
-
-              {/* Checkboxes */}
-              <Grid item xs={12} sm={6}>
-                <Stack spacing={1}>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={proposalData.includesFlight}
-                      onChange={(e) => setProposalData({...proposalData, includesFlight: e.target.checked})}
-                    />
-                    {' '}Flug inklusive
-                  </label>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={proposalData.includesTransfer}
-                      onChange={(e) => setProposalData({...proposalData, includesTransfer: e.target.checked})}
-                    />
-                    {' '}Transfer inklusive
-                  </label>
-                </Stack>
-              </Grid>
-
-              {/* Description */}
-              <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Beschreibung (optional)"
-                  multiline
-                  rows={3}
-                  value={proposalData.description}
-                  onChange={(e) => setProposalData({...proposalData, description: e.target.value})}
-                  placeholder="Zusätzliche Informationen zu diesem Vorschlag..."
-                />
-              </Grid>
-
-              {/* Price Preview */}
-              {proposalData.pricePerPerson && group?.maxParticipants && (
-                <Grid item xs={12}>
-                  <Alert severity="info">
-                    <Typography variant="body2">
-                      <strong>Kostenvorschau:</strong><br />
-                      Pro Person: €{proposalData.pricePerPerson}<br />
-                      Gesamtkosten ({group.maxParticipants} Personen): €{proposalData.pricePerPerson * group.maxParticipants}
+              </Box>
+            ) : (
+              // Schritt 2: Reisedaten eingeben
+              <Box>
+                <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+                  Ausgewähltes Angebot
+                </Typography>
+                
+                {/* Angebot Preview */}
+                <Card sx={{ mb: 3, backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
+                  <CardContent>
+                    <Typography variant="h6">{selectedOffer.title}</Typography>
+                    <Typography variant="body1">
+                      {selectedOffer.destination}, {selectedOffer.country}
                     </Typography>
-                  </Alert>
+                    <Typography variant="h5">
+                      €{selectedOffer.pricePerPerson}/Person
+                    </Typography>
+                    <Box display="flex" gap={1} mt={1}>
+                      <Chip label={selectedOffer.category} size="small" color="primary" />
+                      {selectedOffer.stars && (
+                        <Rating value={selectedOffer.stars} readOnly size="small" />
+                      )}
+                    </Box>
+                  </CardContent>
+                  <CardActions>
+                    <Button 
+                      size="small" 
+                      onClick={() => setSelectedOffer(null)}
+                      sx={{ color: 'primary.contrastText' }}
+                    >
+                      Anderes Angebot wählen
+                    </Button>
+                  </CardActions>
+                </Card>
+
+                {/* Reisedaten */}
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6}>
+                    <DatePicker
+                      label="Abreisedatum *"
+                      value={proposalData.departureDate}
+                      onChange={(date) => setProposalData({...proposalData, departureDate: date})}
+                      renderInput={(params) => <TextField {...params} fullWidth required />}
+                      minDate={new Date()}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <DatePicker
+                      label="Rückreisedatum *"
+                      value={proposalData.returnDate}
+                      onChange={(date) => setProposalData({...proposalData, returnDate: date})}
+                      renderInput={(params) => <TextField {...params} fullWidth required />}
+                      minDate={proposalData.departureDate || new Date()}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Zusätzliche Notizen (optional)"
+                      multiline
+                      rows={3}
+                      value={proposalData.description}
+                      onChange={(e) => setProposalData({...proposalData, description: e.target.value})}
+                      placeholder="Warum ist dieses Angebot perfekt für unsere Gruppe?"
+                    />
+                  </Grid>
+
+                  {/* Kostenvorschau */}
+                  {proposalData.departureDate && proposalData.returnDate && (
+                    <Grid item xs={12}>
+                      <Alert severity="info">
+                        <Typography variant="body2">
+                          <strong>Kostenvorschau für {group?.maxParticipants} Personen:</strong><br />
+                          Pro Person: €{selectedOffer.pricePerPerson}<br />
+                          Gesamtkosten: €{selectedOffer.pricePerPerson * (group?.maxParticipants || 1)}<br />
+                          Reisedauer: {proposalData.departureDate && proposalData.returnDate ? 
+                            Math.ceil((new Date(proposalData.returnDate) - new Date(proposalData.departureDate)) / (1000 * 60 * 60 * 24)) 
+                            : 0} Tage
+                        </Typography>
+                      </Alert>
+                    </Grid>
+                  )}
                 </Grid>
-              )}
-            </Grid>
+              </Box>
+            )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setCreateDialog(false)}>Abbrechen</Button>
-            <Button onClick={handleCreateProposal} variant="contained">
-              Vorschlag erstellen
+            <Button onClick={() => {
+              setCreateDialog(false);
+              setSelectedOffer(null);
+              setProposalData({
+                travelOfferId: '',
+                departureDate: null,
+                returnDate: null,
+                description: ''
+              });
+            }}>
+              Abbrechen
             </Button>
+            {selectedOffer && (
+              <Button onClick={handleCreateProposal} variant="contained">
+                Vorschlag einreichen
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
 
