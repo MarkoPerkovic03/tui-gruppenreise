@@ -31,6 +31,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
+import PollIcon from '@mui/icons-material/Poll';
+import ProposalManager from './ProposalManager';
+import VotingResults from './VotingResults';
 
 const GroupDetail = () => {
   const { id } = useParams();
@@ -119,6 +123,15 @@ const GroupDetail = () => {
     
     fetchGroupDetails();
   }, [id]);
+
+  const handleGroupUpdate = async () => {
+    try {
+      const response = await api.get(`/groups/${id}`);
+      setGroup(response.data);
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Gruppe:', error);
+    }
+  };
 
   const handleAddPreference = async () => {
     if (!newPreference) return;
@@ -243,6 +256,26 @@ const GroupDetail = () => {
     );
   }
 
+  // Bestimme welche Tabs angezeigt werden sollen
+  const getAvailableTabs = () => {
+    const tabs = [
+      { label: 'Übersicht', value: 0 },
+      { label: 'Reisevorschläge', value: 1 },
+      { label: 'Mitglieder', value: 2 }
+    ];
+
+    // Füge Ergebnisse-Tab hinzu wenn Abstimmung läuft oder beendet
+    if (group.status === 'voting' || group.status === 'decided') {
+      tabs.splice(2, 0, { label: 'Abstimmungsergebnisse', value: 2 });
+      // Verschiebe Mitglieder-Tab
+      tabs[3].value = 3;
+    }
+
+    return tabs;
+  };
+
+  const availableTabs = getAvailableTabs();
+
   return (
     <>
       {/* Header */}
@@ -261,6 +294,31 @@ const GroupDetail = () => {
           <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
             {group.description}
           </Typography>
+          
+          {/* Status Badge im Header */}
+          <Box sx={{ mt: 2 }}>
+            <Chip 
+              label={
+                group.status === 'planning' ? 'Planungsphase' : 
+                group.status === 'voting' ? 'Abstimmungsphase' :
+                group.status === 'decided' ? 'Entschieden' : 'Unbekannt'
+              }
+              color={
+                group.status === 'planning' ? 'primary' : 
+                group.status === 'voting' ? 'warning' :
+                group.status === 'decided' ? 'success' : 'default'
+              }
+              icon={
+                group.status === 'voting' ? <PollIcon /> :
+                group.status === 'decided' ? <FlightTakeoffIcon /> : undefined
+              }
+              sx={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                '& .MuiChip-icon': { color: 'white' }
+              }}
+            />
+          </Box>
         </Box>
       </Box>
 
@@ -274,9 +332,9 @@ const GroupDetail = () => {
 
         <Paper>
           <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
-            <Tab label="Übersicht" />
-            <Tab label="Reisevorschläge" />
-            <Tab label="Mitglieder" />
+            {availableTabs.map(tab => (
+              <Tab key={tab.value} label={tab.label} />
+            ))}
           </Tabs>
 
           <Box sx={{ p: 3 }}>
@@ -381,18 +439,23 @@ const GroupDetail = () => {
 
             {/* Reisevorschläge Tab */}
             {activeTab === 1 && (
-              <Box>
-                <Typography variant="h6" gutterBottom>
-                  Reisevorschläge
-                </Typography>
-                <Alert severity="info">
-                  Reisevorschläge-Funktionalität wird bald verfügbar sein.
-                </Alert>
-              </Box>
+              <ProposalManager 
+                groupId={id} 
+                group={group} 
+                onGroupUpdate={handleGroupUpdate}
+              />
+            )}
+
+            {/* Abstimmungsergebnisse Tab (nur wenn voting oder decided) */}
+            {(group.status === 'voting' || group.status === 'decided') && activeTab === 2 && (
+              <VotingResults 
+                groupId={id} 
+                group={group}
+              />
             )}
 
             {/* Mitglieder Tab */}
-            {activeTab === 2 && (
+            {activeTab === (group.status === 'voting' || group.status === 'decided' ? 3 : 2) && (
               <Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6">
