@@ -1,4 +1,4 @@
-// client/src/components/ProposalManager.jsx - OPTIMIERTE VERSION
+// client/src/components/ProposalManager.jsx - ENHANCED WITH DEBUGGING
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -47,7 +47,8 @@ import {
   CalendarToday as CalendarIcon,
   ThumbUp as ThumbUpIcon,
   Group as GroupIcon,
-  Visibility as ViewIcon
+  Visibility as ViewIcon,
+  Warning as WarningIcon
 } from '@mui/icons-material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
@@ -110,45 +111,159 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
     }
   };
 
+  // === ENHANCED OFFER SELECTION WITH DEBUGGING ===
   const handleOfferSelection = (offer) => {
+    console.log('🔍 DEBUGGING SELECTED OFFER:', offer);
+    
+    // Comprehensive data validation
+    const validation = {
+      hasId: !!(offer._id || offer.id),
+      hasTitle: !!offer.title,
+      hasDestination: !!offer.destination,
+      hasCountry: !!offer.country,
+      hasValidPrice: !!(offer.pricePerPerson && offer.pricePerPerson > 0),
+      priceValue: offer.pricePerPerson,
+      priceType: typeof offer.pricePerPerson
+    };
+
+    console.log('📊 VALIDATION RESULTS:', validation);
+
+    // Critical field checks
+    const criticalErrors = [];
+    
+    if (!validation.hasId) {
+      criticalErrors.push('Fehlende ID (_id oder id)');
+    }
+    
+    if (!validation.hasTitle) {
+      criticalErrors.push('Fehlender Titel');
+    }
+    
+    if (!validation.hasDestination) {
+      criticalErrors.push('Fehlendes Reiseziel (destination)');
+    }
+    
+    if (!validation.hasCountry) {
+      criticalErrors.push('Fehlendes Land (country)');
+    }
+    
+    if (!validation.hasValidPrice) {
+      criticalErrors.push(`Ungültiger Preis: ${offer.pricePerPerson} (${typeof offer.pricePerPerson})`);
+    }
+
+    if (criticalErrors.length > 0) {
+      console.error('❌ CRITICAL VALIDATION ERRORS:', criticalErrors);
+      setError(`Angebot "${offer.title}" hat kritische Datenprobleme:\n${criticalErrors.join('\n')}`);
+      
+      // Show detailed error in UI
+      const errorDialog = window.confirm(
+        `FEHLER beim Angebot "${offer.title}":\n\n${criticalErrors.join('\n')}\n\nDennoch fortfahren? (Nicht empfohlen)`
+      );
+      
+      if (!errorDialog) {
+        return;
+      }
+    }
+
+    // Enhanced data structure check
+    const dataStructure = {
+      _id: offer._id,
+      title: offer.title,
+      destination: offer.destination,
+      country: offer.country,
+      city: offer.city,
+      pricePerPerson: offer.pricePerPerson,
+      category: offer.category,
+      images: offer.images?.length || 0,
+      amenities: offer.amenities?.length || 0,
+      tags: offer.tags?.length || 0,
+      description: offer.description?.length || 0
+    };
+
+    console.log('🏗️ OFFER DATA STRUCTURE:', dataStructure);
+
     setSelectedOffer(offer);
     setProposalData({
-      travelOfferId: offer._id,
+      travelOfferId: offer._id || offer.id,
       departureDate: null,
       returnDate: null,
       description: ''
     });
+
+    console.log('✅ OFFER SELECTED SUCCESSFULLY');
   };
 
+  // === ENHANCED PROPOSAL CREATION WITH DEBUGGING ===
   const handleCreateProposal = async () => {
     try {
       setError('');
       
+      console.log('🚀 STARTING PROPOSAL CREATION');
+      console.log('📋 PROPOSAL DATA:', {
+        selectedOffer,
+        proposalData,
+        groupId,
+        user: user?.id
+      });
+
+      // Enhanced validation
+      if (!selectedOffer) {
+        const error = 'Kein Reiseangebot ausgewählt';
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
+        return;
+      }
+
+      if (!selectedOffer._id && !selectedOffer.id) {
+        const error = 'Ausgewähltes Reiseangebot hat keine gültige ID';
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
+        return;
+      }
+
+      if (!selectedOffer.pricePerPerson || selectedOffer.pricePerPerson <= 0) {
+        const error = `Ausgewähltes Angebot hat ungültigen Preis: ${selectedOffer.pricePerPerson}`;
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
+        return;
+      }
+
+      if (!selectedOffer.destination || !selectedOffer.country) {
+        const error = 'Ausgewähltes Reiseangebot hat unvollständige Zieldaten';
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
+        return;
+      }
+
       if (!proposalData.travelOfferId || !proposalData.departureDate || !proposalData.returnDate) {
-        setError('Bitte wählen Sie ein Reiseangebot und geben Sie die Reisedaten an');
+        const error = 'Bitte wählen Sie ein Reiseangebot und geben Sie die Reisedaten an';
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
         return;
       }
 
       if (new Date(proposalData.returnDate) <= new Date(proposalData.departureDate)) {
-        setError('Das Rückreisedatum muss nach dem Abreisedatum liegen');
+        const error = 'Das Rückreisedatum muss nach dem Abreisedatum liegen';
+        console.error('❌ VALIDATION ERROR:', error);
+        setError(error);
         return;
       }
 
+      // Prepare submit data
       const submitData = {
         groupId,
         travelOfferId: proposalData.travelOfferId,
         departureDate: proposalData.departureDate,
         returnDate: proposalData.returnDate,
         description: proposalData.description || '',
-        // Diese Felder werden automatisch aus dem TravelOffer übernommen:
-        // - pricePerPerson
-        // - hotelName  
-        // - destination
-        // - mealPlan
-        // - etc.
       };
 
-      await api.post('/proposals', submitData);
+      console.log('📤 SUBMITTING DATA TO BACKEND:', submitData);
+
+      // Enhanced error logging for API call
+      const response = await api.post('/proposals', submitData);
+      
+      console.log('✅ PROPOSAL CREATED SUCCESSFULLY:', response.data);
       
       setCreateDialog(false);
       setSelectedOffer(null);
@@ -160,9 +275,31 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
       });
       
       await loadProposals();
+      
     } catch (error) {
-      console.error('Fehler beim Erstellen des Vorschlags:', error);
-      setError(error.response?.data?.message || 'Fehler beim Erstellen des Vorschlags');
+      console.error('❌ COMPLETE PROPOSAL CREATION ERROR:', {
+        errorMessage: error.message,
+        responseData: error.response?.data,
+        responseStatus: error.response?.status,
+        requestUrl: error.config?.url,
+        requestData: error.config?.data,
+        selectedOffer: selectedOffer,
+        proposalData: proposalData,
+        fullError: error
+      });
+      
+      // Enhanced error message for user
+      let userError = 'Fehler beim Erstellen des Vorschlags';
+      
+      if (error.response?.data?.message) {
+        userError = error.response.data.message;
+      } else if (error.response?.data?.details) {
+        userError = `${userError}: ${error.response.data.details}`;
+      } else if (error.message) {
+        userError = `${userError}: ${error.message}`;
+      }
+      
+      setError(userError);
     }
   };
 
@@ -253,6 +390,41 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
     all_inclusive: 'All Inclusive'
   };
 
+  // === ENHANCED OFFER VALIDATION COMPONENT ===
+  const OfferValidationDisplay = ({ offer }) => {
+    if (!offer) return null;
+
+    const issues = [];
+    
+    if (!offer._id && !offer.id) issues.push('Keine ID');
+    if (!offer.title) issues.push('Kein Titel');
+    if (!offer.destination) issues.push('Kein Ziel');
+    if (!offer.country) issues.push('Kein Land');
+    if (!offer.pricePerPerson || offer.pricePerPerson <= 0) issues.push('Ungültiger Preis');
+
+    if (issues.length > 0) {
+      return (
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <Box display="flex" alignItems="center" gap={1}>
+            <WarningIcon />
+            <Typography variant="subtitle2">Datenprobleme erkannt:</Typography>
+          </Box>
+          <ul style={{ margin: '8px 0', paddingLeft: '20px' }}>
+            {issues.map((issue, index) => (
+              <li key={index}>{issue}</li>
+            ))}
+          </ul>
+        </Alert>
+      );
+    }
+
+    return (
+      <Alert severity="success" sx={{ mb: 2 }}>
+        ✅ Angebot hat alle erforderlichen Daten
+      </Alert>
+    );
+  };
+
   if (loading) {
     return (
       <Box sx={{ p: 3 }}>
@@ -266,7 +438,7 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={deLocale}>
       <Box>
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }}>
+          <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-line' }}>
             {error}
           </Alert>
         )}
@@ -553,56 +725,72 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
                 </Typography>
                 
                 <Grid container spacing={2} sx={{ mt: 1, maxHeight: 400, overflow: 'auto' }}>
-                  {travelOffers.map((offer) => (
-                    <Grid item xs={12} key={offer._id}>
-                      <Card 
-                        sx={{ 
-                          cursor: 'pointer',
-                          '&:hover': { 
-                            backgroundColor: 'action.hover',
-                            transform: 'translateY(-2px)',
-                            boxShadow: 2
-                          },
-                          transition: 'all 0.2s'
-                        }}
-                        onClick={() => handleOfferSelection(offer)}
-                      >
-                        <CardContent>
-                          <Grid container spacing={2}>
-                            <Grid item xs={3}>
-                              {offer.images?.[0] && (
-                                <img 
-                                  src={offer.images[0].url || offer.images[0]}
-                                  alt={offer.title}
-                                  style={{ 
-                                    width: '100%', 
-                                    height: '80px', 
-                                    objectFit: 'cover',
-                                    borderRadius: '4px'
-                                  }}
-                                />
-                              )}
-                            </Grid>
-                            <Grid item xs={9}>
-                              <Typography variant="h6">{offer.title}</Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {offer.destination}, {offer.country}
-                              </Typography>
-                              <Box display="flex" alignItems="center" gap={2} mt={1}>
-                                <Chip label={offer.category} size="small" />
-                                <Typography variant="h6" color="primary">
-                                  €{offer.pricePerPerson}/Person
-                                </Typography>
-                                {offer.stars && (
-                                  <Rating value={offer.stars} precision={0.5} readOnly size="small" />
+                  {travelOffers.map((offer) => {
+                    // Enhanced offer validation display
+                    const hasIssues = !offer._id || !offer.title || !offer.destination || 
+                                     !offer.country || !offer.pricePerPerson || offer.pricePerPerson <= 0;
+                    
+                    return (
+                      <Grid item xs={12} key={offer._id}>
+                        <Card 
+                          sx={{ 
+                            cursor: 'pointer',
+                            border: hasIssues ? 2 : 0,
+                            borderColor: hasIssues ? 'error.main' : 'transparent',
+                            '&:hover': { 
+                              backgroundColor: 'action.hover',
+                              transform: 'translateY(-2px)',
+                              boxShadow: 2
+                            },
+                            transition: 'all 0.2s'
+                          }}
+                          onClick={() => handleOfferSelection(offer)}
+                        >
+                          <CardContent>
+                            <Grid container spacing={2}>
+                              <Grid item xs={3}>
+                                {offer.images?.[0] && (
+                                  <img 
+                                    src={offer.images[0].url || offer.images[0]}
+                                    alt={offer.title}
+                                    style={{ 
+                                      width: '100%', 
+                                      height: '80px', 
+                                      objectFit: 'cover',
+                                      borderRadius: '4px'
+                                    }}
+                                  />
                                 )}
-                              </Box>
+                              </Grid>
+                              <Grid item xs={9}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                  <Typography variant="h6">{offer.title}</Typography>
+                                  {hasIssues && <WarningIcon color="error" fontSize="small" />}
+                                </Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {offer.destination}, {offer.country}
+                                </Typography>
+                                <Box display="flex" alignItems="center" gap={2} mt={1}>
+                                  <Chip label={offer.category} size="small" />
+                                  <Typography variant="h6" color={hasIssues ? "error" : "primary"}>
+                                    €{offer.pricePerPerson || 0}/Person
+                                  </Typography>
+                                  {offer.stars && (
+                                    <Rating value={offer.stars} precision={0.5} readOnly size="small" />
+                                  )}
+                                </Box>
+                                {hasIssues && (
+                                  <Typography variant="caption" color="error">
+                                    ⚠️ Unvollständige Daten - kann Probleme verursachen
+                                  </Typography>
+                                )}
+                              </Grid>
                             </Grid>
-                          </Grid>
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               </Box>
             ) : (
@@ -611,6 +799,9 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
                 <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
                   Ausgewähltes Angebot
                 </Typography>
+                
+                {/* Enhanced Offer Validation Display */}
+                <OfferValidationDisplay offer={selectedOffer} />
                 
                 {/* Angebot Preview */}
                 <Card sx={{ mb: 3, backgroundColor: 'primary.light', color: 'primary.contrastText' }}>
@@ -689,6 +880,7 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
                       </Alert>
                     </Grid>
                   )}
+
                 </Grid>
               </Box>
             )}
@@ -707,7 +899,11 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
               Abbrechen
             </Button>
             {selectedOffer && (
-              <Button onClick={handleCreateProposal} variant="contained">
+              <Button 
+                onClick={handleCreateProposal} 
+                variant="contained"
+                disabled={!proposalData.departureDate || !proposalData.returnDate}
+              >
                 Vorschlag einreichen
               </Button>
             )}

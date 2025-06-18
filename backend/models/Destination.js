@@ -30,8 +30,8 @@ const destinationSchema = new mongoose.Schema({
     default: 0
   },
   tags: [{
-    type: String,
-    enum: ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family', 'romantic']
+  type: String,
+  enum: ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family', 'romantic', 'budget', 'luxury']
   }],
   coordinates: {
     lat: Number,

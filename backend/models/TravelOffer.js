@@ -117,13 +117,15 @@ const travelOfferSchema = new mongoose.Schema({
     type: String,
     default: '11:00'
   },
-  // WICHTIG: Geändert von ObjectId zu Number!
+  // KORRIGIERT: ObjectId statt Number für User-Referenz
   createdBy: {
-    type: Number,  // ← Das löst den Cast-Fehler
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   },
   lastModifiedBy: {
-    type: Number  // ← Auch hier geändert für Konsistenz
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   },
   bookingCount: {
     type: Number,
