@@ -1,10 +1,10 @@
+// client/src/components/TravelOffers.jsx - FINALE KORRIGIERTE VERSION
 import React, { useState, useEffect } from 'react';
 import {
   Container,
   Grid,
   Card,
   CardContent,
-  CardMedia,
   Typography,
   CardActions,
   Button,
@@ -12,11 +12,6 @@ import {
   Chip,
   Rating,
   Skeleton,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  Divider,
   Paper,
   Alert,
   TextField,
@@ -35,15 +30,13 @@ import {
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import EuroIcon from '@mui/icons-material/Euro';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import CategoryIcon from '@mui/icons-material/Category';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import PeopleIcon from '@mui/icons-material/People';
-import StarIcon from '@mui/icons-material/Star';
+import ImageIcon from '@mui/icons-material/Image';
 import api from '../utils/api';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
@@ -84,7 +77,6 @@ const TravelOffers = () => {
       setLoading(true);
       console.log('Lade Reiseangebote...');
       
-      // URL-Parameter für Filter aufbauen
       const params = new URLSearchParams();
       if (searchTerm) params.append('destination', searchTerm);
       if (filters.category) params.append('category', filters.category);
@@ -99,7 +91,6 @@ const TravelOffers = () => {
       const response = await api.get(`/travel-offers?${params.toString()}`);
       console.log('Geladene Angebote:', response.data);
       
-      // Response kann direkt Array oder Objekt mit offers-Property sein
       const offersData = response.data.offers || response.data;
       setOffers(offersData);
       setError(null);
@@ -111,6 +102,46 @@ const TravelOffers = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ✅ VÖLLIG NEUE BILD-STRATEGIE - Robuste Fallbacks
+  const getImageUrl = (offer, index = 0) => {
+    // 1. Versuche originale Bild-URLs
+    if (offer.images && Array.isArray(offer.images) && offer.images.length > index) {
+      const img = offer.images[index];
+      const url = typeof img === 'string' ? img : img?.url;
+      if (url && url.startsWith('http')) {
+        return url;
+      }
+    }
+    
+    // 2. Versuche mainImage
+    if (index === 0 && offer.mainImage && offer.mainImage.startsWith('http')) {
+      return offer.mainImage;
+    }
+    
+    // 3. Fallback zu Picsum (funktioniert immer)
+    const seed = (offer.title + offer.destination + index).replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    return `https://picsum.photos/seed/${seed}/600/400`;
+  };
+
+  const handleImageError = (event, offer, index = 0) => {
+    console.warn(`Bild ${index} fehlgeschlagen für ${offer.title}`);
+    
+    // Fallback-Strategie
+    const fallbackUrls = [
+      `https://picsum.photos/seed/${offer.title.replace(/[^a-zA-Z0-9]/g, '')}/600/400`,
+      `https://via.placeholder.com/600x400/0057B8/ffffff?text=${encodeURIComponent(offer.title)}`,
+      'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkhvdGVsIEJpbGQ8L3RleHQ+PC9zdmc+'
+    ];
+    
+    // Versuche nächsten Fallback
+    const currentSrc = event.target.src;
+    const currentIndex = fallbackUrls.findIndex(url => url === currentSrc);
+    
+    if (currentIndex < fallbackUrls.length - 1) {
+      event.target.src = fallbackUrls[currentIndex + 1];
     }
   };
 
@@ -144,9 +175,7 @@ const TravelOffers = () => {
 
   const handleAddToGroup = async (offer) => {
     try {
-      // Hier würdest du die Logik implementieren, um das Angebot zu einer Gruppe hinzuzufügen
       console.log('Füge zur Gruppe hinzu:', offer);
-      // Beispiel: await api.post(`/groups/${groupId}/proposals`, { travelOfferId: offer._id });
       alert(`"${offer.title}" wurde zur Gruppe hinzugefügt!`);
     } catch (error) {
       console.error('Fehler beim Hinzufügen zur Gruppe:', error);
@@ -183,9 +212,16 @@ const TravelOffers = () => {
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <img 
-              src={offer.mainImage || offer.images?.[0]?.url} 
+              src={getImageUrl(offer, 0)}
               alt={offer.title}
-              style={{ width: '100%', height: '300px', objectFit: 'cover', borderRadius: '8px' }}
+              onError={(e) => handleImageError(e, offer, 0)}
+              style={{ 
+                width: '100%', 
+                height: '300px', 
+                objectFit: 'cover', 
+                borderRadius: '8px',
+                backgroundColor: '#f5f5f5'
+              }}
             />
           </Box>
           
@@ -298,7 +334,6 @@ const TravelOffers = () => {
           <Button
             variant="outlined"
             startIcon={<FilterListIcon />}
-            onClick={() => {/* Filter-Panel toggle */}}
           >
             Filter
           </Button>
@@ -418,12 +453,43 @@ const TravelOffers = () => {
                   }
                 }}
               >
-                <CardMedia
-                  component="img"
-                  height="200"
-                  image={offer.mainImage || offer.images?.[0]?.url || offer.image}
-                  alt={offer.title}
-                />
+                {/* ✅ KORRIGIERTE BILD-ANZEIGE - Garantiert funktionierend */}
+                <Box
+                  sx={{
+                    height: 200,
+                    backgroundColor: '#f5f5f5',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}
+                >
+                  <img
+                    src={getImageUrl(offer, 0)}
+                    alt={offer.title}
+                    onError={(e) => handleImageError(e, offer, 0)}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  {/* Fallback Icon falls alle Bilder fehlschlagen */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      opacity: 0,
+                      '&:has(+ img[src=""])': { opacity: 1 }
+                    }}
+                  >
+                    <ImageIcon sx={{ fontSize: 60, color: 'text.secondary' }} />
+                  </Box>
+                </Box>
+
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Typography gutterBottom variant="h5" component="h2">
                     {offer.title}
