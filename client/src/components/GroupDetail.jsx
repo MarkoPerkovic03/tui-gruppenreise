@@ -1,3 +1,4 @@
+// client/src/components/GroupDetail.jsx - ERWEITERT mit InviteLinkManager
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -33,8 +34,10 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
 import PollIcon from '@mui/icons-material/Poll';
+import LinkIcon from '@mui/icons-material/Link';
 import ProposalManager from './ProposalManager';
 import VotingResults from './VotingResults';
+import InviteLinkManager from './InviteLinkManager';
 
 const GroupDetail = () => {
   const { id } = useParams();
@@ -271,6 +274,14 @@ const GroupDetail = () => {
       tabs[3].value = 3;
     }
 
+    // Füge Einladungs-Tab hinzu für Admins
+    if (isAdmin) {
+      tabs.push({ 
+        label: 'Einladungen', 
+        value: group.status === 'voting' || group.status === 'decided' ? 4 : 3 
+      });
+    }
+
     return tabs;
   };
 
@@ -333,7 +344,15 @@ const GroupDetail = () => {
         <Paper>
           <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
             {availableTabs.map(tab => (
-              <Tab key={tab.value} label={tab.label} />
+              <Tab 
+                key={tab.value} 
+                label={
+                  <Box display="flex" alignItems="center" gap={1}>
+                    {tab.label === 'Einladungen' && <LinkIcon fontSize="small" />}
+                    {tab.label}
+                  </Box>
+                } 
+              />
             ))}
           </Tabs>
 
@@ -502,6 +521,15 @@ const GroupDetail = () => {
                   })}
                 </List>
               </Box>
+            )}
+
+            {/* Einladungen Tab (nur für Admins) */}
+            {isAdmin && activeTab === (group.status === 'voting' || group.status === 'decided' ? 4 : 3) && (
+              <InviteLinkManager 
+                groupId={id}
+                group={group}
+                onUpdate={handleGroupUpdate}
+              />
             )}
           </Box>
         </Paper>

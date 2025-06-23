@@ -1,3 +1,4 @@
+// client/src/App.jsx - KORRIGIERTE VERSION
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Container, Box, Button } from '@mui/material';
@@ -7,6 +8,7 @@ import GroupDetail from './components/GroupDetail';
 import Login from './components/Login';
 import TravelOffers from './components/TravelOffers';
 import UserProfile from './components/UserProfile';
+import InviteJoinPage from './components/InviteJoinPage'; // ← NEU
 import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
@@ -243,8 +245,6 @@ function App() {
                       onClick={handleLogout}
                       color="inherit"
                       startIcon={<LogoutIcon />}
-                      component={Link}
-                      to="/login"
                     >
                       Abmelden
                     </Button>
@@ -263,6 +263,13 @@ function App() {
                     </LoginRoute>
                   } 
                 />
+                
+                {/* ===== NEU: Invite Route (öffentlich zugänglich) ===== */}
+                <Route
+                  path="/invite/:token"
+                  element={<InviteJoinPage />}
+                />
+                
                 <Route
                   path="/groups"
                   element={

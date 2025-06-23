@@ -1,3 +1,4 @@
+// backend/server.js - ERWEITERT mit Invite Routes
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -22,7 +23,13 @@ app.use('/api/profile', require('./routes/profile'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));
 app.use('/api/travel-offers', require('./routes/travelOffers'));
-app.use('/api/proposals', require('./routes/proposals')); // ← NEU: Proposals Route
+app.use('/api/proposals', require('./routes/proposals'));
+app.use('/api/invites', require('./routes/invites')); // ← NEU: Invite Routes
+
+// Admin Routes (falls vorhanden)
+if (require('fs').existsSync('./routes/admin.js')) {
+  app.use('/api/admin', require('./routes/admin'));
+}
 
 // Fehlerbehandlung
 app.use((err, req, res, next) => {
@@ -47,4 +54,5 @@ app.listen(PORT, () => {
   console.log(`👥 Users API verfügbar unter http://localhost:${PORT}/api/users`);
   console.log(`🏠 Groups API verfügbar unter http://localhost:${PORT}/api/groups`);
   console.log(`✈️ Proposals API verfügbar unter http://localhost:${PORT}/api/proposals`);
+  console.log(`🔗 Invites API verfügbar unter http://localhost:${PORT}/api/invites`); // ← NEU
 });
