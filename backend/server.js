@@ -24,7 +24,14 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));
 app.use('/api/travel-offers', require('./routes/travelOffers'));
 app.use('/api/proposals', require('./routes/proposals'));
-app.use('/api/invites', require('./routes/invites')); // ← NEU: Invite Routes
+try {
+  console.log('🔍 Loading invite routes...');
+  const inviteRoutes = require('./routes/invites');
+  app.use('/api/invites', inviteRoutes);
+  console.log('✅ Invite routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load invite routes:', error);
+}
 
 // Admin Routes (falls vorhanden)
 if (require('fs').existsSync('./routes/admin.js')) {

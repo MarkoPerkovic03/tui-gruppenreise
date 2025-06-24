@@ -1,4 +1,4 @@
-// client/src/components/InviteJoinPage.jsx - Seite für Beitritt via Einladungslink
+// client/src/components/InviteJoinPage.jsx - KOMPLETTE VERSION mit Login-Redirect Fix
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -54,8 +54,17 @@ const InviteJoinPage = () => {
   const [loginDialog, setLoginDialog] = useState(false);
 
   useEffect(() => {
+    console.log('🔍 InviteJoinPage loaded:', {
+      token,
+      isAuthenticated,
+      currentUrl: window.location.href,
+      user: user?.email
+    });
+    
     loadInviteDetails();
   }, [token]);
+
+  // Kein automatisches Beitreten - User soll bewusst entscheiden
 
   const loadInviteDetails = async () => {
     try {
@@ -64,13 +73,7 @@ const InviteJoinPage = () => {
       
       console.log('🔍 Lade Einladungsdetails für Token:', token);
       
-      // API-Call ohne Authentication für öffentliche Invite-Details
-      const response = await fetch(`http://localhost:3001/api/invites/${token}`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Fehler beim Laden der Einladung');
-      }
+      const data = await api.getInviteDetails(token);
       
       setInviteData(data);
       console.log('✅ Einladungsdetails geladen:', data);
@@ -95,16 +98,16 @@ const InviteJoinPage = () => {
       
       console.log('👥 Trete Gruppe bei via Token:', token);
       
-      const response = await api.post(`/invites/${token}/join`);
+      const response = await api.joinGroupViaInvite(token);
       
-      console.log('✅ Erfolgreich Gruppe beigetreten:', response.data);
+      console.log('✅ Erfolgreich Gruppe beigetreten:', response);
       
       setSuccess(`Willkommen in der Gruppe "${inviteData.group.name}"! 🎉`);
       
-      // Nach 2 Sekunden zur Gruppe weiterleiten
+      // Nach 4 Sekunden zur Gruppe weiterleiten (mehr Zeit zum Lesen)
       setTimeout(() => {
         navigate(`/groups/${inviteData.group._id}`);
-      }, 2000);
+      }, 4000);
       
     } catch (error) {
       console.error('❌ Fehler beim Beitreten:', error);
@@ -115,8 +118,11 @@ const InviteJoinPage = () => {
   };
 
   const handleLogin = () => {
-    // Speichere aktuellen Pfad für Redirect nach Login
-    localStorage.setItem('redirectAfterLogin', window.location.pathname);
+    // Speichere komplette URL für Redirect nach Login
+    const currentUrl = window.location.href;
+    localStorage.setItem('inviteReturnUrl', currentUrl);
+    console.log('🔄 Speichere Invite URL für Redirect:', currentUrl);
+    
     navigate('/login');
   };
 
@@ -159,12 +165,20 @@ const InviteJoinPage = () => {
           <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
             {error}
           </Typography>
-          <Button
-            variant="contained"
-            onClick={() => navigate('/groups')}
-          >
-            Zu den Gruppen
-          </Button>
+          <Stack direction="row" spacing={2} justifyContent="center">
+            <Button
+              variant="contained"
+              onClick={() => navigate('/groups')}
+            >
+              Zu den Gruppen
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => window.location.reload()}
+            >
+              Neu laden
+            </Button>
+          </Stack>
         </Paper>
       </Container>
     );
@@ -192,11 +206,14 @@ const InviteJoinPage = () => {
             <CheckIcon sx={{ mr: 1 }} />
             {success}
           </Box>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            Sie werden in 4 Sekunden zur Gruppe weitergeleitet...
+          </Typography>
         </Alert>
       )}
 
       {/* Error Message */}
-      {error && (
+      {error && !success && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
         </Alert>
@@ -237,7 +254,7 @@ const InviteJoinPage = () => {
                   </ListItemAvatar>
                   <ListItemText
                     primary="Budget pro Person"
-                    secondary={`€${group?.budgetMin} - €${group?.budgetMax}`}
+                    secondary={`€${group?.budgetMin || 0} - €${group?.budgetMax || 0}`}
                   />
                 </ListItem>
                 
@@ -249,7 +266,7 @@ const InviteJoinPage = () => {
                   </ListItemAvatar>
                   <ListItemText
                     primary="Teilnehmer"
-                    secondary={`${group?.memberCount}/${group?.maxParticipants} Mitglieder`}
+                    secondary={`${group?.memberCount || 0}/${group?.maxParticipants || 0} Mitglieder`}
                   />
                 </ListItem>
               </List>
@@ -348,6 +365,18 @@ const InviteJoinPage = () => {
                 />
               </Stack>
 
+              {/* Anmeldestatus anzeigen */}
+              {isAuthenticated && (
+                <Alert severity="success" sx={{ mb: 2 }}>
+                  <Typography variant="body2">
+                    ✅ Angemeldet als: <strong>{user?.email}</strong>
+                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 0.5 }}>
+                    Sie können jetzt der Gruppe beitreten!
+                  </Typography>
+                </Alert>
+              )}
+
               {/* Beitritts-Button */}
               {inviteData?.canJoin ? (
                 <Button
@@ -361,7 +390,7 @@ const InviteJoinPage = () => {
                 >
                   {joining ? 'Trete bei...' : 
                    success ? 'Beigetreten!' : 
-                   isAuthenticated ? 'Gruppe beitreten' : 'Anmelden & Beitreten'}
+                   isAuthenticated ? 'Jetzt der Gruppe beitreten' : 'Anmelden & Beitreten'}
                 </Button>
               ) : (
                 <Button
@@ -374,24 +403,35 @@ const InviteJoinPage = () => {
                 </Button>
               )}
 
-              {!isAuthenticated && (
+              {!isAuthenticated && !success && (
                 <Alert severity="info" sx={{ mb: 2 }}>
                   <Typography variant="body2">
-                    Sie müssen sich anmelden oder registrieren, um der Gruppe beizutreten.
+                    Sie müssen sich zuerst anmelden oder registrieren.
                   </Typography>
                 </Alert>
               )}
 
               {/* Zusätzliche Aktionen */}
               <Box>
-                <Button
-                  fullWidth
-                  variant="text"
-                  onClick={() => navigate('/groups')}
-                  size="small"
-                >
-                  Andere Gruppen ansehen
-                </Button>
+                {isAuthenticated ? (
+                  <Button
+                    fullWidth
+                    variant="text"
+                    onClick={() => navigate('/groups')}
+                    size="small"
+                  >
+                    Meine Gruppen ansehen
+                  </Button>
+                ) : (
+                  <Button
+                    fullWidth
+                    variant="text"
+                    onClick={() => navigate('/groups')}
+                    size="small"
+                  >
+                    Andere Gruppen ansehen
+                  </Button>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -414,7 +454,19 @@ const InviteJoinPage = () => {
                         borderColor: 'background.paper'
                       }}
                     >
-                      {member.user?.name?.[0] || '?'}
+                      {member.user?.name?.[0] || index + 1}
+                    </Avatar>
+                  )) || Array.from({ length: Math.min(group.memberCount, 5) }).map((_, index) => (
+                    <Avatar
+                      key={index}
+                      sx={{ 
+                        width: 32, 
+                        height: 32,
+                        border: 2,
+                        borderColor: 'background.paper'
+                      }}
+                    >
+                      {index + 1}
                     </Avatar>
                   ))}
                   {group.memberCount > 5 && (

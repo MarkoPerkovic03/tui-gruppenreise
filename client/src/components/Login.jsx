@@ -1,3 +1,4 @@
+// client/src/components/Login.jsx - KOMPLETTE VERSION mit Invite-Redirect Fix
 import React, { useState } from 'react';
 import {
   Box,
@@ -48,6 +49,35 @@ const Login = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const handleRedirectAfterAuth = () => {
+    // ✅ INVITE-REDIRECT LOGIC - Prüfe zuerst auf Invite-URL
+    const inviteUrl = localStorage.getItem('inviteReturnUrl');
+    if (inviteUrl) {
+      localStorage.removeItem('inviteReturnUrl');
+      console.log('🔄 Redirect zu Invite URL:', inviteUrl);
+      
+      // Verwende window.location.href für vollständigen Reload der Invite-Seite
+      setTimeout(() => {
+        window.location.href = inviteUrl;
+      }, 100);
+      return;
+    }
+
+    // ✅ STANDARD-REDIRECT LOGIC für normale Navigation
+    const redirectPath = localStorage.getItem('redirectAfterLogin');
+    if (redirectPath) {
+      localStorage.removeItem('redirectAfterLogin');
+      console.log('🔄 Redirect zu gespeichertem Pfad:', redirectPath);
+      navigate(redirectPath, { replace: true });
+      return;
+    }
+
+    // ✅ FALLBACK-REDIRECT
+    const from = location.state?.from?.pathname || '/groups';
+    console.log('🔄 Standard-Redirect zu:', from);
+    navigate(from, { replace: true });
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError('');
@@ -56,19 +86,31 @@ const Login = () => {
 
     setIsLoading(true);
     try {
+      console.log('🔐 Versuche Login für:', email);
+      
       const response = await api.post('/auth/login', { email, password });
+      
+      console.log('✅ Login erfolgreich:', response.data.user.email);
+      
+      // Speichere Token und User
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
+      // Update Auth Context
       setUser(response.data.user);
       setIsAuthenticated(true);
 
-      const from = location.state?.from?.pathname || '/groups';
-      navigate(from, { replace: true });
+      console.log('🔄 Auth Context aktualisiert, starte Redirect...');
+      
+      // Redirect Logic
+      handleRedirectAfterAuth();
+
     } catch (error) {
-      console.error('Login-Fehler:', error);
+      console.error('❌ Login-Fehler:', error);
       if (error.response?.data?.message) {
         setError(error.response.data.message);
+      } else if (error.code === 'ECONNREFUSED') {
+        setError('Verbindung zum Server fehlgeschlagen. Ist das Backend gestartet?');
       } else {
         setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
       }
@@ -85,24 +127,36 @@ const Login = () => {
 
     setIsLoading(true);
     try {
+      console.log('📝 Versuche Registrierung für:', email);
+      
       const response = await api.post('/auth/register', {
         name,
         email,
         password,
         isSystemAdmin
       });
+      
+      console.log('✅ Registrierung erfolgreich:', response.data.user.email);
+      
+      // Speichere Token und User
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
+      // Update Auth Context
       setUser(response.data.user);
       setIsAuthenticated(true);
 
-      const from = location.state?.from?.pathname || '/groups';
-      navigate(from, { replace: true });
+      console.log('🔄 Auth Context aktualisiert, starte Redirect...');
+      
+      // Redirect Logic (gleich wie bei Login)
+      handleRedirectAfterAuth();
+
     } catch (error) {
-      console.error('Registrierungsfehler:', error);
+      console.error('❌ Registrierungsfehler:', error);
       if (error.response?.data?.message) {
         setError(error.response.data.message);
+      } else if (error.code === 'ECONNREFUSED') {
+        setError('Verbindung zum Server fehlgeschlagen. Ist das Backend gestartet?');
       } else {
         setError('Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.');
       }
@@ -111,6 +165,24 @@ const Login = () => {
     }
   };
 
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+    setError('');
+    setValidationErrors({});
+  };
+
+  // Debug Info (nur in Development)
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 Login Component Debug Info:', {
+        currentUrl: window.location.href,
+        inviteReturnUrl: localStorage.getItem('inviteReturnUrl'),
+        redirectAfterLogin: localStorage.getItem('redirectAfterLogin'),
+        locationState: location.state
+      });
+    }
+  }, [location]);
+
   return (
     <Box
       sx={{
@@ -118,7 +190,8 @@ const Login = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#f5f5f5'
+        backgroundColor: '#f5f5f5',
+        py: 4
       }}
     >
       <Paper elevation={3} sx={{ p: 4, width: '100%', maxWidth: 400, textAlign: 'center' }}>
@@ -128,18 +201,27 @@ const Login = () => {
 
         <Tabs
           value={activeTab}
-          onChange={(e, newValue) => {
-            setActiveTab(newValue);
-            setError('');
-            setValidationErrors({});
-          }}
+          onChange={handleTabChange}
           sx={{ mb: 3 }}
         >
           <Tab label="Anmelden" />
           <Tab label="Registrieren" />
         </Tabs>
 
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {/* Debug Info für Invite-Redirects (nur in Development) */}
+        {process.env.NODE_ENV === 'development' && localStorage.getItem('inviteReturnUrl') && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <Typography variant="body2">
+              🔄 Nach Login Redirect zu Einladung
+            </Typography>
+          </Alert>
+        )}
 
         <form onSubmit={activeTab === 0 ? handleLogin : handleRegister}>
           {activeTab === 1 && (
@@ -147,11 +229,15 @@ const Login = () => {
               fullWidth
               label="Name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setValidationErrors(prev => ({ ...prev, name: '' }));
+              }}
               error={!!validationErrors.name}
               helperText={validationErrors.name}
               required
               sx={{ mb: 2 }}
+              disabled={isLoading}
             />
           )}
 
@@ -168,6 +254,7 @@ const Login = () => {
             helperText={validationErrors.email}
             required
             sx={{ mb: 2 }}
+            disabled={isLoading}
           />
 
           <TextField
@@ -183,6 +270,7 @@ const Login = () => {
             helperText={validationErrors.password}
             required
             sx={{ mb: 2 }}
+            disabled={isLoading}
           />
 
           {activeTab === 1 && (
@@ -191,6 +279,7 @@ const Login = () => {
                 <Checkbox
                   checked={isSystemAdmin}
                   onChange={(e) => setIsSystemAdmin(e.target.checked)}
+                  disabled={isLoading}
                 />
               }
               label="Als Systemadministrator registrieren"
@@ -206,16 +295,41 @@ const Login = () => {
             disabled={isLoading}
             sx={{
               backgroundColor: '#0057B8',
-              '&:hover': { backgroundColor: '#004494' }
+              '&:hover': { backgroundColor: '#004494' },
+              mb: 2
             }}
           >
             {isLoading ? (
-              <CircularProgress size={24} color="inherit" />
+              <Box display="flex" alignItems="center">
+                <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                {activeTab === 0 ? 'Anmeldung...' : 'Registrierung...'}
+              </Box>
             ) : (
               activeTab === 0 ? 'Anmelden' : 'Registrieren'
             )}
           </Button>
         </form>
+
+        {/* Navigation Hilfe */}
+        <Box sx={{ mt: 2, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Typography variant="body2" color="text.secondary">
+            {activeTab === 0 
+              ? 'Noch kein Konto? Wechseln Sie zum "Registrieren" Tab.'
+              : 'Bereits registriert? Wechseln Sie zum "Anmelden" Tab.'
+            }
+          </Typography>
+        </Box>
+
+        {/* Test-Accounts Hinweis (nur in Development) */}
+        {process.env.NODE_ENV === 'development' && (
+          <Box sx={{ mt: 2, p: 2, backgroundColor: 'rgba(0, 87, 184, 0.05)', borderRadius: 1 }}>
+            <Typography variant="caption" color="text.secondary">
+              Test-Accounts:<br />
+              Admin: admin@tui.com / admin123<br />
+              Demo: demo@tui.com / demo123
+            </Typography>
+          </Box>
+        )}
       </Paper>
     </Box>
   );

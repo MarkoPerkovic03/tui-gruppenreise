@@ -1,10 +1,10 @@
-// client/src/utils/api.js - ERWEITERT mit Invite Endpoints
+// client/src/utils/api.js - KORRIGIERTE VERSION mit Debug-Logging
 import axios from 'axios';
 
 // Basis-URL für die API
 const api = axios.create({
-  baseURL: 'http://localhost:3001/api',  // ← Direkte Basis-URL zum Backend-API
-  withCredentials: false, // CORS-Probleme vermeiden
+  baseURL: 'http://localhost:3001/api',
+  withCredentials: false,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
@@ -18,6 +18,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Debug-Logging für alle Requests
+    console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      headers: config.headers
+    });
     return config;
   },
   (error) => {
@@ -28,10 +34,18 @@ api.interceptors.request.use(
 
 // Response-Interceptor: Automatisch bei 401/403 zur Login-Seite weiterleiten
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`, response.data);
+    return response;
+  },
   (error) => {
+    console.error(`❌ API Error: ${error.response?.status || 'Network'} ${error.config?.url}`, {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+
     if (error.response?.status === 401) {
-      // Speichere aktuellen Pfad für Redirect nach Login
       const currentPath = window.location.pathname;
       if (!currentPath.includes('/login') && !currentPath.includes('/invite/')) {
         localStorage.setItem('redirectAfterLogin', currentPath);
@@ -40,71 +54,68 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       
-      // Nur weiterleiten wenn nicht schon auf Login-Seite oder Invite-Seite
       if (!currentPath.includes('/login') && !currentPath.includes('/invite/')) {
         window.location.href = '/login';
       }
-    } else if (error.response) {
-      // Server hat mit einem Status-Code geantwortet
-      switch (error.response.status) {
-        case 404:
-          console.error('Ressource nicht gefunden:', error.config.url);
-          break;
-        case 500:
-          console.error('Server-Fehler:', error.response.data);
-          break;
-        default:
-          console.error('API-Fehler:', error.response.data);
-      }
-    } else if (error.request) {
-      // Anfrage wurde gesendet, aber keine Antwort erhalten
-      console.error('Keine Antwort vom Server:', error.request);
-    } else {
-      // Fehler bei der Anfrage-Konfiguration
-      console.error('Anfrage-Fehler:', error.message);
     }
     return Promise.reject(error);
   }
 );
 
-// ===== NEUE INVITE API METHODS =====
+// ===== KORRIGIERTE INVITE API METHODS =====
 
 // Generate invite link for a group
 api.generateInviteLink = async (groupId, expiresInDays = 7) => {
   try {
+    console.log('🔗 Generiere Einladungslink:', { groupId, expiresInDays });
     const response = await api.post('/invites/generate', {
       groupId,
       expiresInDays
     });
     return response.data;
   } catch (error) {
+    console.error('❌ Fehler beim Generieren des Einladungslinks:', error);
     throw error;
   }
 };
 
-// Get invite details by token (public endpoint)
+// ✅ KORRIGIERT: Get invite details by token (public endpoint)
 api.getInviteDetails = async (token) => {
   try {
-    // Verwende direkten fetch für öffentlichen Endpoint
-    const response = await fetch(`http://localhost:3001/api/invites/${token}`);
-    const data = await response.json();
+    console.log('🔍 Lade Einladungsdetails für Token:', token);
     
-    if (!response.ok) {
-      throw new Error(data.message || 'Fehler beim Laden der Einladung');
-    }
+    // ✅ FIX: Verwende axios-Instance statt fetch für einheitliches Error-Handling
+    const response = await api.get(`/invites/${token}`);
     
-    return data;
+    console.log('✅ Einladungsdetails geladen:', response.data);
+    return response.data;
   } catch (error) {
-    throw error;
+    console.error('❌ Fehler beim Laden der Einladungsdetails:', error);
+    
+    // Besseres Error-Handling mit spezifischen Nachrichten
+    if (error.response?.status === 404) {
+      throw new Error('Diese Einladung wurde nicht gefunden oder ist abgelaufen.');
+    } else if (error.response?.status === 400) {
+      throw new Error('Ungültiger Einladungslink.');
+    } else if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+      throw new Error('Verbindung zum Server fehlgeschlagen. Ist das Backend gestartet?');
+    } else {
+      throw new Error(`Fehler beim Laden der Einladung: ${error.message}`);
+    }
   }
 };
 
 // Join group via invite token
 api.joinGroupViaInvite = async (token) => {
   try {
+    console.log('👥 Trete Gruppe bei via Token:', token);
     const response = await api.post(`/invites/${token}/join`);
+    console.log('✅ Erfolgreich der Gruppe beigetreten:', response.data);
     return response.data;
   } catch (error) {
+    console.error('❌ Fehler beim Beitreten der Gruppe:', error);
     throw error;
   }
 };
@@ -112,9 +123,11 @@ api.joinGroupViaInvite = async (token) => {
 // Get current invite link for a group
 api.getCurrentInviteLink = async (groupId) => {
   try {
+    console.log('📋 Lade aktuellen Einladungslink für Gruppe:', groupId);
     const response = await api.get(`/invites/group/${groupId}/current`);
     return response.data;
   } catch (error) {
+    console.error('❌ Fehler beim Laden des aktuellen Einladungslinks:', error);
     throw error;
   }
 };
@@ -122,18 +135,21 @@ api.getCurrentInviteLink = async (groupId) => {
 // Revoke invite link
 api.revokeInviteLink = async (groupId) => {
   try {
+    console.log('🚫 Widerrufe Einladungslink für Gruppe:', groupId);
     const response = await api.delete(`/invites/${groupId}/revoke`);
     return response.data;
   } catch (error) {
+    console.error('❌ Fehler beim Widerrufen des Einladungslinks:', error);
     throw error;
   }
 };
 
-// ===== ERWEITERTE LOGIN FUNKTION für Redirect-Handling =====
-const originalLogin = api.post;
+// ===== ENHANCED LOGIN FUNKTION für Redirect-Handling =====
+const originalPost = api.post;
 api.login = async (email, password) => {
   try {
-    const response = await originalLogin('/auth/login', { email, password });
+    console.log('🔐 Versuche Login für:', email);
+    const response = await originalPost('/auth/login', { email, password });
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
@@ -143,20 +159,25 @@ api.login = async (email, password) => {
       const redirectPath = localStorage.getItem('redirectAfterLogin');
       if (redirectPath) {
         localStorage.removeItem('redirectAfterLogin');
-        window.location.href = redirectPath;
+        console.log('🔄 Redirect nach Login:', redirectPath);
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 100);
       }
     }
     
     return response;
   } catch (error) {
+    console.error('❌ Login-Fehler:', error);
     throw error;
   }
 };
 
-// ===== ERWEITERTE REGISTER FUNKTION für Redirect-Handling =====
+// ===== ENHANCED REGISTER FUNKTION für Redirect-Handling =====
 api.register = async (userData) => {
   try {
-    const response = await api.post('/auth/register', userData);
+    console.log('📝 Versuche Registrierung für:', userData.email);
+    const response = await originalPost('/auth/register', userData);
     
     if (response.data.token) {
       localStorage.setItem('token', response.data.token);
@@ -166,14 +187,43 @@ api.register = async (userData) => {
       const redirectPath = localStorage.getItem('redirectAfterLogin');
       if (redirectPath) {
         localStorage.removeItem('redirectAfterLogin');
-        window.location.href = redirectPath;
+        console.log('🔄 Redirect nach Registrierung:', redirectPath);
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 100);
       }
     }
     
     return response;
   } catch (error) {
+    console.error('❌ Registrierungs-Fehler:', error);
     throw error;
   }
+};
+
+// ===== DEBUGGING HILFSFUNKTIONEN =====
+
+// Test-Funktion für Backend-Verbindung
+api.testConnection = async () => {
+  try {
+    console.log('🧪 Teste Backend-Verbindung...');
+    const response = await api.get('/auth/test');
+    console.log('✅ Backend-Verbindung OK:', response.data);
+    return true;
+  } catch (error) {
+    console.error('❌ Backend-Verbindung fehlgeschlagen:', error);
+    return false;
+  }
+};
+
+// Debug-Info für aktuelle Konfiguration
+api.getDebugInfo = () => {
+  return {
+    baseURL: api.defaults.baseURL,
+    hasToken: !!localStorage.getItem('token'),
+    currentUser: JSON.parse(localStorage.getItem('user') || 'null'),
+    redirectPath: localStorage.getItem('redirectAfterLogin')
+  };
 };
 
 export default api;
