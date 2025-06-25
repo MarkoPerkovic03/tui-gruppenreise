@@ -1,6 +1,4 @@
-// === ECHTE LÖSUNG - INVITE SYSTEM MIT DATENBANK ===
-
-// SCHRITT 1: Kopiere diese Datei nach backend/routes/invites.js
+// backend/routes/invites.js - VERBESSERTE VERSION mit vollständigen Gruppendaten
 
 const express = require('express');
 const router = express.Router();
@@ -109,19 +107,19 @@ router.get('/:token', async (req, res) => {
       });
     }
     
-    // Find group with this token using model method if available
-    let group;
-    if (Group.findByValidInviteToken) {
-      group = await Group.findByValidInviteToken(token);
-    } else {
-      // Manual query
-      group = await Group.findOne({ 
-        inviteToken: token,
-        inviteTokenExpires: { $gt: new Date() }
-      })
-      .populate('creator', 'name email')
-      .populate('members.user', 'name email');
-    }
+    // Erweiterte GROUP-DATEN LADEN mit vollständigen Member-Informationen
+    let group = await Group.findOne({ 
+      inviteToken: token,
+      inviteTokenExpires: { $gt: new Date() }
+    })
+    .populate({
+      path: 'creator', 
+      select: 'name email profile.firstName profile.lastName profile.profileImage'
+    })
+    .populate({
+      path: 'members.user', 
+      select: 'name email profile.firstName profile.lastName profile.profileImage'
+    });
     
     if (!group) {
       console.log('❌ No valid invite found for token:', token);
@@ -139,17 +137,70 @@ router.get('/:token', async (req, res) => {
       groupName: group.name,
       memberCount: group.members.length,
       maxParticipants: group.maxParticipants,
-      hasSpace
+      hasSpace,
+      creatorName: group.creator?.name,
+      membersFound: group.members.length
     });
     
-    // Return group details for invite page
+    // Erweiterte Member-Daten für Frontend
+    const enrichedMembers = group.members.map(member => {
+      const memberUser = member.user;
+      if (!memberUser) {
+        return {
+          _id: member._id,
+          role: member.role,
+          joinedAt: member.joinedAt,
+          user: {
+            _id: 'unknown',
+            name: 'Unbekannter Benutzer',
+            email: 'Keine E-Mail',
+            displayName: 'Unbekannter Benutzer',
+            profileImage: null
+          }
+        };
+      }
+      
+      return {
+        _id: member._id,
+        role: member.role,
+        joinedAt: member.joinedAt,
+        user: {
+          _id: memberUser._id,
+          name: memberUser.name || 'Unbekannt',
+          email: memberUser.email || 'Keine E-Mail',
+          displayName: memberUser.profile?.firstName && memberUser.profile?.lastName 
+            ? `${memberUser.profile.firstName} ${memberUser.profile.lastName}`
+            : memberUser.name || 'Unbekannt',
+          profileImage: memberUser.profile?.profileImage
+        }
+      };
+    });
+    
+    // Erweiterte Creator-Daten
+    const enrichedCreator = group.creator ? {
+      _id: group.creator._id,
+      name: group.creator.name || 'Unbekannt',
+      email: group.creator.email || 'Keine E-Mail',
+      displayName: group.creator.profile?.firstName && group.creator.profile?.lastName 
+        ? `${group.creator.profile.firstName} ${group.creator.profile.lastName}`
+        : group.creator.name || 'Unbekannt',
+      profileImage: group.creator.profile?.profileImage
+    } : {
+      _id: 'unknown',
+      name: 'Unbekannter Ersteller',
+      email: 'Keine E-Mail',
+      displayName: 'Unbekannter Ersteller',
+      profileImage: null
+    };
+    
+    // Return enhanced group details for invite page
     res.json({
       success: true,
       group: {
         _id: group._id,
         name: group.name,
         description: group.description,
-        creator: group.creator,
+        creator: enrichedCreator,
         memberCount: group.members.length,
         maxParticipants: group.maxParticipants,
         hasSpace,
@@ -159,7 +210,7 @@ router.get('/:token', async (req, res) => {
         budgetMax: group.budgetMax,
         preferences: group.preferences,
         status: group.status,
-        members: group.members // Include for member preview
+        members: enrichedMembers // ✅ Vollständige Member-Daten
       },
       canJoin: hasSpace,
       expiresAt: group.inviteTokenExpires
@@ -256,10 +307,13 @@ router.post('/:token/join', auth, async (req, res) => {
       newMemberCount: group.members.length
     });
     
-    // Load updated group for response
+    // ✅ Load updated group with full member details for response
     const updatedGroup = await Group.findById(group._id)
-      .populate('creator', 'name email')
-      .populate('members.user', 'name email');
+      .populate('creator', 'name email profile.firstName profile.lastName')
+      .populate({
+        path: 'members.user', 
+        select: 'name email profile.firstName profile.lastName profile.profileImage'
+      });
     
     res.json({
       success: true,

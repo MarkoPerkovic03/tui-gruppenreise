@@ -1,4 +1,4 @@
-// client/src/components/GroupDetail.jsx - ERWEITERT mit InviteLinkManager
+// client/src/components/GroupDetail.jsx - ERWEITERT mit InviteLinkManager und neuen Admin-Funktionen
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -25,16 +25,24 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Menu,
+  ListItemIcon
 } from '@mui/material';
+import {
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  PersonAdd as PersonAddIcon,
+  ArrowBack as ArrowBackIcon,
+  FlightTakeoff as FlightTakeoffIcon,
+  Poll as PollIcon,
+  Link as LinkIcon,
+  MoreVert as MoreVertIcon,
+  PersonRemove as PersonRemoveIcon,
+  Warning as WarningIcon,
+  AdminPanelSettings as AdminIcon
+} from '@mui/icons-material';
 import api from '../utils/api';
-import DeleteIcon from '@mui/icons-material/Delete';
-import AddIcon from '@mui/icons-material/Add';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import FlightTakeoffIcon from '@mui/icons-material/FlightTakeoff';
-import PollIcon from '@mui/icons-material/Poll';
-import LinkIcon from '@mui/icons-material/Link';
 import ProposalManager from './ProposalManager';
 import VotingResults from './VotingResults';
 import InviteLinkManager from './InviteLinkManager';
@@ -47,11 +55,19 @@ const GroupDetail = () => {
   const [activeTab, setActiveTab] = useState(0);
   const [error, setError] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  
+  // Dialog States
   const [addPreferenceOpen, setAddPreferenceOpen] = useState(false);
   const [newPreference, setNewPreference] = useState('');
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [addMemberError, setAddMemberError] = useState('');
+  const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
+  const [removeMemberOpen, setRemoveMemberOpen] = useState(false);
+  const [selectedMember, setSelectedMember] = useState(null);
+  
+  // Menu State
+  const [memberMenuAnchor, setMemberMenuAnchor] = useState(null);
 
   // Verfügbare Präferenzen basierend auf Ihrem Backend-Model
   const availablePreferences = [
@@ -192,6 +208,33 @@ const GroupDetail = () => {
     }
   };
 
+  // NEU: Mitglied entfernen
+  const handleRemoveMember = async () => {
+    if (!selectedMember) return;
+
+    try {
+      await api.delete(`/groups/${id}/members/${selectedMember.user._id}`);
+      await handleGroupUpdate();
+      setRemoveMemberOpen(false);
+      setSelectedMember(null);
+    } catch (error) {
+      console.error('❌ Fehler beim Entfernen des Mitglieds:', error);
+      setError(error.response?.data?.message || 'Fehler beim Entfernen des Mitglieds');
+    }
+  };
+
+  // NEU: Gruppe löschen
+  const handleDeleteGroup = async () => {
+    try {
+      await api.delete(`/groups/${id}`);
+      navigate('/groups', { replace: true });
+    } catch (error) {
+      console.error('❌ Fehler beim Löschen der Gruppe:', error);
+      setError(error.response?.data?.message || 'Fehler beim Löschen der Gruppe');
+      setDeleteGroupOpen(false);
+    }
+  };
+
   const handleLeaveGroup = async () => {
     try {
       await api.delete(`/groups/${id}/leave`);
@@ -200,6 +243,17 @@ const GroupDetail = () => {
       console.error('Fehler beim Verlassen der Gruppe:', error);
       setError(error.response?.data?.message || 'Fehler beim Verlassen der Gruppe');
     }
+  };
+
+  // NEU: Menü-Handler für Mitgliederverwaltung
+  const handleMemberMenuOpen = (event, member) => {
+    setMemberMenuAnchor(event.currentTarget);
+    setSelectedMember(member);
+  };
+
+  const handleMemberMenuClose = () => {
+    setMemberMenuAnchor(null);
+    setSelectedMember(null);
   };
 
   // Loading State
@@ -442,13 +496,22 @@ const GroupDetail = () => {
                 {/* Aktionen */}
                 <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
                   <Stack direction="row" spacing={2}>
-                    {!isAdmin && (
+                    {!isAdmin ? (
                       <Button 
                         variant="outlined" 
                         color="error"
                         onClick={handleLeaveGroup}
                       >
                         Gruppe verlassen
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outlined" 
+                        color="error"
+                        startIcon={<DeleteIcon />}
+                        onClick={() => setDeleteGroupOpen(true)}
+                      >
+                        Gruppe löschen
                       </Button>
                     )}
                   </Stack>
@@ -516,6 +579,17 @@ const GroupDetail = () => {
                             </Box>
                           }
                         />
+                        {/* NEU: Admin-Aktionen für Mitglieder */}
+                        {isAdmin && member.role !== 'admin' && (
+                          <ListItemSecondaryAction>
+                            <IconButton
+                              edge="end"
+                              onClick={(e) => handleMemberMenuOpen(e, member)}
+                            >
+                              <MoreVertIcon />
+                            </IconButton>
+                          </ListItemSecondaryAction>
+                        )}
                       </ListItem>
                     );
                   })}
@@ -534,6 +608,23 @@ const GroupDetail = () => {
           </Box>
         </Paper>
       </Box>
+
+      {/* NEU: Mitglieder-Aktionen Menü */}
+      <Menu
+        anchorEl={memberMenuAnchor}
+        open={Boolean(memberMenuAnchor)}
+        onClose={handleMemberMenuClose}
+      >
+        <MenuItem onClick={() => {
+          setRemoveMemberOpen(true);
+          handleMemberMenuClose();
+        }}>
+          <ListItemIcon>
+            <PersonRemoveIcon fontSize="small" />
+          </ListItemIcon>
+          Mitglied entfernen
+        </MenuItem>
+      </Menu>
 
       {/* Dialog: Präferenz hinzufügen */}
       <Dialog open={addPreferenceOpen} onClose={() => setAddPreferenceOpen(false)}>
@@ -609,6 +700,66 @@ const GroupDetail = () => {
             disabled={!newMemberEmail.trim()}
           >
             Hinzufügen
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* NEU: Dialog: Mitglied entfernen */}
+      <Dialog open={removeMemberOpen} onClose={() => setRemoveMemberOpen(false)}>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <WarningIcon color="warning" />
+            Mitglied entfernen
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography>
+            Sind Sie sicher, dass Sie <strong>{selectedMember?.user?.name || selectedMember?.user?.email}</strong> aus der Gruppe entfernen möchten?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Diese Aktion kann nicht rückgängig gemacht werden.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRemoveMemberOpen(false)}>
+            Abbrechen
+          </Button>
+          <Button 
+            onClick={handleRemoveMember}
+            variant="contained"
+            color="error"
+          >
+            Entfernen
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* NEU: Dialog: Gruppe löschen */}
+      <Dialog open={deleteGroupOpen} onClose={() => setDeleteGroupOpen(false)}>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <WarningIcon color="error" />
+            Gruppe löschen
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            Sind Sie sicher, dass Sie die Gruppe <strong>"{group?.name}"</strong> dauerhaft löschen möchten?
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Diese Aktion kann nicht rückgängig gemacht werden. Alle Daten, Reisevorschläge und Abstimmungen werden unwiderruflich gelöscht.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteGroupOpen(false)}>
+            Abbrechen
+          </Button>
+          <Button 
+            onClick={handleDeleteGroup}
+            variant="contained"
+            color="error"
+          >
+            Gruppe löschen
           </Button>
         </DialogActions>
       </Dialog>

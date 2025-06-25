@@ -1,4 +1,4 @@
-// client/src/components/InviteJoinPage.jsx - KOMPLETTE VERSION mit Login-Redirect Fix
+// client/src/components/InviteJoinPage.jsx - VERBESSERTE VERSION
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -36,7 +36,9 @@ import {
   Error as ErrorIcon,
   Login as LoginIcon,
   PersonAdd as PersonAddIcon,
-  FlightTakeoff as FlightIcon
+  FlightTakeoff as FlightIcon,
+  AdminPanelSettings as AdminIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
 import api from '../utils/api';
@@ -63,8 +65,6 @@ const InviteJoinPage = () => {
     
     loadInviteDetails();
   }, [token]);
-
-  // Kein automatisches Beitreten - User soll bewusst entscheiden
 
   const loadInviteDetails = async () => {
     try {
@@ -104,10 +104,10 @@ const InviteJoinPage = () => {
       
       setSuccess(`Willkommen in der Gruppe "${inviteData.group.name}"! 🎉`);
       
-      // Nach 4 Sekunden zur Gruppe weiterleiten (mehr Zeit zum Lesen)
+      // ✅ NACH 3 SEKUNDEN ZUR GRUPPENÜBERSICHT WEITERLEITEN (nicht automatisch nach Login)
       setTimeout(() => {
-        navigate(`/groups/${inviteData.group._id}`);
-      }, 4000);
+        navigate('/groups');
+      }, 3000);
       
     } catch (error) {
       console.error('❌ Fehler beim Beitreten:', error);
@@ -118,7 +118,7 @@ const InviteJoinPage = () => {
   };
 
   const handleLogin = () => {
-    // Speichere komplette URL für Redirect nach Login
+    // ✅ KEIN AUTOMATISCHES BEITRETEN - Speichere nur URL für Redirect
     const currentUrl = window.location.href;
     localStorage.setItem('inviteReturnUrl', currentUrl);
     console.log('🔄 Speichere Invite URL für Redirect:', currentUrl);
@@ -141,6 +141,88 @@ const InviteJoinPage = () => {
     } else {
       return `${hours}h`;
     }
+  };
+
+  // ✅ NEUE FUNKTION: Gruppenmitglieder anzeigen
+  const renderGroupMembers = (members) => {
+    if (!members || members.length === 0) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Noch keine Mitglieder in der Gruppe
+        </Typography>
+      );
+    }
+
+    return (
+      <List dense>
+        {members.map((member, index) => {
+          const memberUser = member.user || member;
+          const displayName = memberUser?.name || memberUser?.email || `Mitglied ${index + 1}`;
+          const displayEmail = memberUser?.email || '';
+          const isCreator = member.role === 'admin' || member.role === 'creator';
+          
+          return (
+            <ListItem key={index} disableGutters>
+              <ListItemAvatar>
+                <Avatar sx={{ width: 32, height: 32, bgcolor: isCreator ? 'primary.main' : 'grey.400' }}>
+                  {isCreator ? <AdminIcon fontSize="small" /> : displayName?.[0] || '?'}
+                </Avatar>
+              </ListItemAvatar>
+              <ListItemText
+                primary={
+                  <Box display="flex" alignItems="center" gap={1}>
+                    <Typography variant="body2" fontWeight={isCreator ? 'bold' : 'normal'}>
+                      {displayName}
+                    </Typography>
+                    {isCreator && (
+                      <Chip 
+                        label="Gruppenleitung" 
+                        size="small" 
+                        color="primary" 
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                }
+                secondary={displayEmail}
+              />
+            </ListItem>
+          );
+        })}
+      </List>
+    );
+  };
+
+  // ✅ NEUE FUNKTION: Gruppenersteller hervorheben
+  const renderGroupCreator = (creator) => {
+    if (!creator) {
+      return (
+        <Typography variant="body2" color="text.secondary">
+          Ersteller unbekannt
+        </Typography>
+      );
+    }
+
+    return (
+      <Box display="flex" alignItems="center" gap={2}>
+        <Avatar sx={{ bgcolor: 'primary.main' }}>
+          <AdminIcon />
+        </Avatar>
+        <Box>
+          <Typography variant="subtitle1" fontWeight="bold">
+            {creator.name || creator.email || 'Unbekannt'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Gruppenleitung
+          </Typography>
+          {creator.email && creator.name && (
+            <Typography variant="caption" color="text.secondary">
+              {creator.email}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+    );
   };
 
   if (loading) {
@@ -207,7 +289,7 @@ const InviteJoinPage = () => {
             {success}
           </Box>
           <Typography variant="body2" sx={{ mt: 1 }}>
-            Sie werden in 4 Sekunden zur Gruppe weitergeleitet...
+            Sie werden in 3 Sekunden zur Gruppenübersicht weitergeleitet...
           </Typography>
         </Alert>
       )}
@@ -223,6 +305,16 @@ const InviteJoinPage = () => {
       <Grid container spacing={3}>
         {/* Hauptinformationen */}
         <Grid item xs={12} md={8}>
+          {/* Gruppenersteller prominenter anzeigen */}
+          <Card sx={{ mb: 3 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Gruppenleitung
+              </Typography>
+              {renderGroupCreator(group?.creator)}
+            </CardContent>
+          </Card>
+
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
@@ -297,25 +389,16 @@ const InviteJoinPage = () => {
             </CardContent>
           </Card>
 
-          {/* Ersteller Info */}
+          {/* ✅ GRUPPENMITGLIEDER ANZEIGEN */}
           <Card>
             <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Erstellt von
-              </Typography>
-              <Box display="flex" alignItems="center">
-                <Avatar sx={{ mr: 2 }}>
-                  {group?.creator?.name?.[0] || 'U'}
-                </Avatar>
-                <Box>
-                  <Typography variant="subtitle1">
-                    {group?.creator?.name || 'Unbekannt'}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Gruppenleitung
-                  </Typography>
-                </Box>
+              <Box display="flex" alignItems="center" gap={1} mb={2}>
+                <PeopleIcon color="primary" />
+                <Typography variant="h6">
+                  Gruppenmitglieder ({group?.memberCount || 0})
+                </Typography>
               </Box>
+              {renderGroupMembers(group?.members)}
             </CardContent>
           </Card>
         </Grid>
@@ -369,15 +452,12 @@ const InviteJoinPage = () => {
               {isAuthenticated && (
                 <Alert severity="success" sx={{ mb: 2 }}>
                   <Typography variant="body2">
-                    ✅ Angemeldet als: <strong>{user?.email}</strong>
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 0.5 }}>
-                    Sie können jetzt der Gruppe beitreten!
+                    Angemeldet als: <strong>{user?.email}</strong>
                   </Typography>
                 </Alert>
               )}
 
-              {/* Beitritts-Button */}
+              {/* Bewusster Beitritts-Button */}
               {inviteData?.canJoin ? (
                 <Button
                   fullWidth
@@ -413,73 +493,17 @@ const InviteJoinPage = () => {
 
               {/* Zusätzliche Aktionen */}
               <Box>
-                {isAuthenticated ? (
-                  <Button
-                    fullWidth
-                    variant="text"
-                    onClick={() => navigate('/groups')}
-                    size="small"
-                  >
-                    Meine Gruppen ansehen
-                  </Button>
-                ) : (
-                  <Button
-                    fullWidth
-                    variant="text"
-                    onClick={() => navigate('/groups')}
-                    size="small"
-                  >
-                    Andere Gruppen ansehen
-                  </Button>
-                )}
+                <Button
+                  fullWidth
+                  variant="text"
+                  onClick={() => navigate('/groups')}
+                  size="small"
+                >
+                  Zur Gruppenübersicht
+                </Button>
               </Box>
             </CardContent>
           </Card>
-
-          {/* Gruppenmitglieder Preview */}
-          {group?.memberCount > 0 && (
-            <Card sx={{ mt: 2 }}>
-              <CardContent>
-                <Typography variant="subtitle2" gutterBottom>
-                  Bereits dabei ({group.memberCount})
-                </Typography>
-                <Stack direction="row" spacing={-0.5}>
-                  {group.members?.slice(0, 5).map((member, index) => (
-                    <Avatar
-                      key={index}
-                      sx={{ 
-                        width: 32, 
-                        height: 32,
-                        border: 2,
-                        borderColor: 'background.paper'
-                      }}
-                    >
-                      {member.user?.name?.[0] || index + 1}
-                    </Avatar>
-                  )) || Array.from({ length: Math.min(group.memberCount, 5) }).map((_, index) => (
-                    <Avatar
-                      key={index}
-                      sx={{ 
-                        width: 32, 
-                        height: 32,
-                        border: 2,
-                        borderColor: 'background.paper'
-                      }}
-                    >
-                      {index + 1}
-                    </Avatar>
-                  ))}
-                  {group.memberCount > 5 && (
-                    <Avatar sx={{ width: 32, height: 32, bgcolor: 'grey.300' }}>
-                      <Typography variant="caption">
-                        +{group.memberCount - 5}
-                      </Typography>
-                    </Avatar>
-                  )}
-                </Stack>
-              </CardContent>
-            </Card>
-          )}
         </Grid>
       </Grid>
 

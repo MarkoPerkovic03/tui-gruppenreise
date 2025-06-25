@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Group = require('../models/Group');
-const auth = require('../middleware/auth'); // Middleware für Authentication
+const auth = require('../middleware/auth');
 
 // Alle Gruppen des Users abrufen
 router.get('/', auth, async (req, res) => {
@@ -41,7 +41,6 @@ router.post('/', auth, async (req, res) => {
     
     const savedGroup = await group.save();
     
-    // KORRIGIERT: Moderne Mongoose populate Syntax
     const populatedGroup = await Group.findById(savedGroup._id)
       .populate('creator', 'name email')
       .populate('members.user', 'name email');
@@ -59,7 +58,6 @@ router.get('/:id', auth, async (req, res) => {
   try {
     console.log('🔍 Lade Gruppe:', req.params.id, 'für User:', req.user.id);
     
-    // Validiere ObjectId Format
     if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
       console.log('❌ Ungültige Gruppen-ID:', req.params.id);
       return res.status(400).json({ message: 'Ungültige Gruppen-ID Format' });
@@ -74,7 +72,6 @@ router.get('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Gruppe nicht gefunden' });
     }
     
-    // Prüfe ob User Mitglied ist
     const isMember = group.members.some(member => 
       member.user._id.toString() === req.user.id.toString()
     );
@@ -103,7 +100,6 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(404).json({ message: 'Gruppe nicht gefunden' });
     }
     
-    // Prüfe ob User Admin der Gruppe ist
     const userMember = group.members.find(member => 
       member.user.toString() === req.user.id.toString()
     );
@@ -112,7 +108,6 @@ router.put('/:id', auth, async (req, res) => {
       return res.status(403).json({ message: 'Nur Gruppen-Admins können Änderungen vornehmen' });
     }
     
-    // Aktualisiere erlaubte Felder
     const allowedUpdates = ['name', 'description', 'maxParticipants', 'travelDateFrom', 'travelDateTo', 'budgetMin', 'budgetMax', 'preferences'];
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) {
@@ -134,6 +129,53 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
+// NEU: Gruppe löschen (nur für Admins)
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    console.log('🗑️ Lösche Gruppe:', req.params.id, 'User:', req.user.id);
+    
+    const group = await Group.findById(req.params.id);
+    
+    if (!group) {
+      return res.status(404).json({ message: 'Gruppe nicht gefunden' });
+    }
+    
+    // Prüfe ob User Admin der Gruppe ist
+    const userMember = group.members.find(member => 
+      member.user.toString() === req.user.id.toString()
+    );
+    
+    if (!userMember || userMember.role !== 'admin') {
+      return res.status(403).json({ message: 'Nur Gruppen-Admins können die Gruppe löschen' });
+    }
+    
+    // Lösche alle abhängigen Daten
+    const Proposal = require('../models/Proposal');
+    const Vote = require('../models/Vote');
+    
+    // Finde alle Proposals der Gruppe
+    const proposals = await Proposal.find({ group: req.params.id });
+    
+    // Lösche alle Votes zu diesen Proposals
+    for (const proposal of proposals) {
+      await Vote.deleteMany({ proposal: proposal._id });
+    }
+    
+    // Lösche alle Proposals
+    await Proposal.deleteMany({ group: req.params.id });
+    
+    // Lösche die Gruppe
+    await Group.findByIdAndDelete(req.params.id);
+    
+    console.log('✅ Gruppe und abhängige Daten gelöscht:', req.params.id);
+    res.json({ message: 'Gruppe wurde erfolgreich gelöscht' });
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Löschen der Gruppe:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Mitglied zur Gruppe hinzufügen
 router.post('/:id/members', auth, async (req, res) => {
   try {
@@ -145,7 +187,6 @@ router.post('/:id/members', auth, async (req, res) => {
       return res.status(404).json({ message: 'Gruppe nicht gefunden' });
     }
     
-    // Prüfe ob aktueller User Admin ist
     const currentUserMember = group.members.find(member => 
       member.user.toString() === req.user.id.toString()
     );
@@ -154,14 +195,12 @@ router.post('/:id/members', auth, async (req, res) => {
       return res.status(403).json({ message: 'Nur Gruppen-Admins können Mitglieder hinzufügen' });
     }
     
-    // Finde User by Email
     const User = require('../models/user');
     const newUser = await User.findOne({ email: userEmail });
     if (!newUser) {
       return res.status(404).json({ message: 'Benutzer mit dieser E-Mail nicht gefunden' });
     }
     
-    // Prüfe ob bereits Mitglied
     const isAlreadyMember = group.members.some(member => 
       member.user.toString() === newUser._id.toString()
     );
@@ -170,12 +209,10 @@ router.post('/:id/members', auth, async (req, res) => {
       return res.status(400).json({ message: 'Benutzer ist bereits Mitglied der Gruppe' });
     }
     
-    // Prüfe maximale Teilnehmerzahl
     if (group.members.length >= group.maxParticipants) {
       return res.status(400).json({ message: 'Maximale Teilnehmerzahl erreicht' });
     }
     
-    // Füge Mitglied hinzu
     group.members.push({
       user: newUser._id,
       role: 'member',
@@ -196,6 +233,67 @@ router.post('/:id/members', auth, async (req, res) => {
   }
 });
 
+// NEU: Mitglied aus Gruppe entfernen (nur für Admins)
+router.delete('/:id/members/:userId', auth, async (req, res) => {
+  try {
+    const { id: groupId, userId } = req.params;
+    console.log('👥 Entferne Mitglied:', userId, 'aus Gruppe:', groupId, 'von Admin:', req.user.id);
+    
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Gruppe nicht gefunden' });
+    }
+    
+    // Prüfe ob aktueller User Admin ist
+    const currentUserMember = group.members.find(member => 
+      member.user.toString() === req.user.id.toString()
+    );
+    
+    if (!currentUserMember || currentUserMember.role !== 'admin') {
+      return res.status(403).json({ message: 'Nur Gruppen-Admins können Mitglieder entfernen' });
+    }
+    
+    // Finde das zu entfernende Mitglied
+    const memberToRemoveIndex = group.members.findIndex(member => 
+      member.user.toString() === userId.toString()
+    );
+    
+    if (memberToRemoveIndex === -1) {
+      return res.status(404).json({ message: 'Mitglied nicht in der Gruppe gefunden' });
+    }
+    
+    const memberToRemove = group.members[memberToRemoveIndex];
+    
+    // Verhindere, dass sich Admin selbst entfernt
+    if (userId.toString() === req.user.id.toString()) {
+      return res.status(400).json({ message: 'Sie können sich nicht selbst aus der Gruppe entfernen' });
+    }
+    
+    // Verhindere, dass der Gruppenerstellet entfernt wird
+    if (userId.toString() === group.creator.toString()) {
+      return res.status(400).json({ message: 'Der Gruppenersteller kann nicht entfernt werden' });
+    }
+    
+    // Entferne das Mitglied
+    group.members.splice(memberToRemoveIndex, 1);
+    await group.save();
+    
+    const updatedGroup = await Group.findById(group._id)
+      .populate('creator', 'name email')
+      .populate('members.user', 'name email');
+    
+    console.log('✅ Mitglied entfernt:', userId);
+    res.json({
+      message: 'Mitglied wurde aus der Gruppe entfernt',
+      group: updatedGroup
+    });
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Entfernen des Mitglieds:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Gruppe verlassen
 router.delete('/:id/leave', auth, async (req, res) => {
   try {
@@ -206,7 +304,6 @@ router.delete('/:id/leave', auth, async (req, res) => {
       return res.status(404).json({ message: 'Gruppe nicht gefunden' });
     }
     
-    // Prüfe ob User Mitglied ist
     const memberIndex = group.members.findIndex(member => 
       member.user.toString() === req.user.id.toString()
     );
@@ -215,14 +312,12 @@ router.delete('/:id/leave', auth, async (req, res) => {
       return res.status(400).json({ message: 'Sie sind kein Mitglied dieser Gruppe' });
     }
     
-    // Prüfe ob User der Creator ist
     if (group.creator.toString() === req.user.id.toString()) {
       return res.status(400).json({ 
-        message: 'Als Ersteller können Sie die Gruppe nicht verlassen. Übertragen Sie zuerst die Admin-Rechte.' 
+        message: 'Als Ersteller können Sie die Gruppe nicht verlassen. Übertragen Sie zuerst die Admin-Rechte oder löschen Sie die Gruppe.' 
       });
     }
     
-    // Entferne Mitglied
     group.members.splice(memberIndex, 1);
     await group.save();
     

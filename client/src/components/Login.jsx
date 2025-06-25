@@ -1,4 +1,4 @@
-// client/src/components/Login.jsx - KOMPLETTE VERSION mit Invite-Redirect Fix
+// client/src/components/Login.jsx - KORRIGIERTE VERSION ohne automatisches Beitreten
 import React, { useState } from 'react';
 import {
   Box,
@@ -50,15 +50,27 @@ const Login = () => {
   };
 
   const handleRedirectAfterAuth = () => {
-    // ✅ INVITE-REDIRECT LOGIC - Prüfe zuerst auf Invite-URL
+    // ✅ KORRIGIERT: INVITE-REDIRECT LOGIC - Nur zur Einladungsseite, KEIN automatisches Beitreten
     const inviteUrl = localStorage.getItem('inviteReturnUrl');
     if (inviteUrl) {
       localStorage.removeItem('inviteReturnUrl');
-      console.log('🔄 Redirect zu Invite URL:', inviteUrl);
+      console.log('🔄 Redirect zu Invite URL (OHNE AUTOMATISCHES BEITRETEN):', inviteUrl);
       
-      // Verwende window.location.href für vollständigen Reload der Invite-Seite
+      // ✅ WICHTIGE ÄNDERUNG: Verwende navigate() statt window.location.href
+      // So bleibt es im React-Router-Kontext und behält den Auth-State
       setTimeout(() => {
-        window.location.href = inviteUrl;
+        // Extrahiere nur den Pfad-Teil der URL
+        try {
+          const url = new URL(inviteUrl);
+          const invitePath = url.pathname; // z.B. "/invite/abc123"
+          console.log('🔄 Navigiere zu Invite-Pfad:', invitePath);
+          navigate(invitePath, { replace: true });
+        } catch (e) {
+          // Fallback: Falls URL-Parsing fehlschlägt, verwende die ganze URL
+          const invitePath = inviteUrl.replace(window.location.origin, '');
+          console.log('🔄 Fallback-Navigation zu:', invitePath);
+          navigate(invitePath, { replace: true });
+        }
       }, 100);
       return;
     }
@@ -102,7 +114,7 @@ const Login = () => {
 
       console.log('🔄 Auth Context aktualisiert, starte Redirect...');
       
-      // Redirect Logic
+      // ✅ KORRIGIERTE Redirect Logic - Kein automatisches Beitreten
       handleRedirectAfterAuth();
 
     } catch (error) {
@@ -148,7 +160,7 @@ const Login = () => {
 
       console.log('🔄 Auth Context aktualisiert, starte Redirect...');
       
-      // Redirect Logic (gleich wie bei Login)
+      // ✅ KORRIGIERTE Redirect Logic - Kein automatisches Beitreten
       handleRedirectAfterAuth();
 
     } catch (error) {
