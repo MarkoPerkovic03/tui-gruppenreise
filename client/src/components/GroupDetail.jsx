@@ -253,7 +253,7 @@ const GroupDetail = () => {
 
   const handleMemberMenuClose = () => {
     setMemberMenuAnchor(null);
-    setSelectedMember(null);
+    // selectedMember NICHT hier auf null setzen - wird erst beim Dialog-Close gemacht
   };
 
   // Loading State
@@ -616,8 +616,8 @@ const GroupDetail = () => {
         onClose={handleMemberMenuClose}
       >
         <MenuItem onClick={() => {
-          setRemoveMemberOpen(true);
-          handleMemberMenuClose();
+          handleMemberMenuClose(); // Menü schließen, aber selectedMember beibehalten
+          setRemoveMemberOpen(true); // Dialog öffnen
         }}>
           <ListItemIcon>
             <PersonRemoveIcon fontSize="small" />
@@ -705,7 +705,10 @@ const GroupDetail = () => {
       </Dialog>
 
       {/* NEU: Dialog: Mitglied entfernen */}
-      <Dialog open={removeMemberOpen} onClose={() => setRemoveMemberOpen(false)}>
+      <Dialog open={removeMemberOpen} onClose={() => {
+        setRemoveMemberOpen(false);
+        setSelectedMember(null); // Hier wird selectedMember zurückgesetzt
+      }}>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>
             <WarningIcon color="warning" />
@@ -721,7 +724,10 @@ const GroupDetail = () => {
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRemoveMemberOpen(false)}>
+          <Button onClick={() => {
+            setRemoveMemberOpen(false);
+            setSelectedMember(null);
+          }}>
             Abbrechen
           </Button>
           <Button 

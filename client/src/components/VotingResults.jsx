@@ -1,4 +1,4 @@
-// client/src/components/VotingResults.jsx - Fixed Version mit eigenem Data Loading
+// client/src/components/VotingResults.jsx - ENHANCED VERSION mit Tie-Breaking Info
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -27,7 +27,11 @@ import {
   ListItemAvatar,
   ListItemText,
   Divider,
-  CircularProgress
+  CircularProgress,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
+  Stack
 } from '@mui/material';
 import {
   EmojiEvents as TrophyIcon,
@@ -35,12 +39,19 @@ import {
   Person as PersonIcon,
   ThumbUp as ThumbUpIcon,
   ThumbDown as ThumbDownIcon,
-  Remove as NeutralIcon
+  Remove as NeutralIcon,
+  ExpandMore as ExpandMoreIcon,
+  Info as InfoIcon,
+  Balance as BalanceIcon,
+  AttachMoney as MoneyIcon,
+  AccessTime as TimeIcon
 } from '@mui/icons-material';
 import api from '../utils/api';
 
 const VotingResults = ({ groupId, group }) => {
   const [proposals, setProposals] = useState([]);
+  const [tieInfo, setTieInfo] = useState(null);
+  const [statistics, setStatistics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [detailDialog, setDetailDialog] = useState(false);
@@ -48,17 +59,21 @@ const VotingResults = ({ groupId, group }) => {
   const [votes, setVotes] = useState([]);
 
   useEffect(() => {
-    loadProposals();
+    loadResults();
   }, [groupId]);
 
-  const loadProposals = async () => {
+  const loadResults = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/proposals/group/${groupId}`);
-      setProposals(response.data);
+      // Verwende die enhanced results endpoint
+      const response = await api.get(`/proposals/group/${groupId}/results`);
+      
+      setProposals(response.data.proposals);
+      setTieInfo(response.data.tieInfo);
+      setStatistics(response.data.statistics);
       setError('');
     } catch (error) {
-      console.error('Fehler beim Laden der Vorschläge:', error);
+      console.error('Fehler beim Laden der Abstimmungsergebnisse:', error);
       setError('Fehler beim Laden der Abstimmungsergebnisse');
     } finally {
       setLoading(false);
@@ -68,7 +83,7 @@ const VotingResults = ({ groupId, group }) => {
   const loadVoteDetails = async (proposalId) => {
     try {
       const response = await api.get(`/proposals/${proposalId}/votes`);
-      setVotes(response.data);
+      setVotes(response.data.votes || []);
       setSelectedProposal(proposals.find(p => p._id === proposalId));
       setDetailDialog(true);
     } catch (error) {
@@ -103,6 +118,74 @@ const VotingResults = ({ groupId, group }) => {
     }
   };
 
+  // Tie-Breaking Info Component
+  const TieBreakingInfo = () => {
+    if (!tieInfo || !tieInfo.hasTie) return null;
+
+    const tieBreakingMessages = {
+      vote_count: 'Gleichstand durch Anzahl der Stimmen entschieden',
+      super_votes: 'Gleichstand durch mehr "Super"-Bewertungen entschieden', 
+      fewer_no_votes: 'Gleichstand durch weniger "Nein"-Bewertungen entschieden',
+      price_performance: 'Gleichstand durch besseres Preis-Leistungs-Verhältnis entschieden',
+      creation_time: 'Gleichstand durch Reihenfolge der Einreichung entschieden'
+    };
+
+    const tieBreakingIcons = {
+      vote_count: <PollIcon />,
+      super_votes: <ThumbUpIcon />,
+      fewer_no_votes: <ThumbDownIcon />,
+      price_performance: <MoneyIcon />,
+      creation_time: <TimeIcon />
+    };
+
+    return (
+      <Alert 
+        severity="info" 
+        sx={{ mb: 3 }}
+        icon={<BalanceIcon />}
+      >
+        <Typography variant="subtitle2" gutterBottom>
+          ⚖️ Gleichstand erkannt
+        </Typography>
+        <Typography variant="body2" gutterBottom>
+          {tieInfo.tiedProposals.length} Vorschläge hatten die gleiche Bewertung 
+          ({tieInfo.topScore.toFixed(1)} Punkte).
+        </Typography>
+        {tieInfo.tieBreakingMethod && (
+          <Box sx={{ display: 'flex', alignItems: 'center', mt: 1, gap: 1 }}>
+            {tieBreakingIcons[tieInfo.tieBreakingMethod]}
+            <Typography variant="body2">
+              <strong>Entscheidung:</strong> {tieBreakingMessages[tieInfo.tieBreakingMethod]}
+            </Typography>
+          </Box>
+        )}
+        
+        {/* Details zu den gleichstehenden Vorschlägen */}
+        <Accordion sx={{ mt: 2 }}>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2">Details zu gleichstehenden Vorschlägen</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Stack spacing={1}>
+              {tieInfo.tiedProposals.map((proposal, index) => (
+                <Box key={proposal._id} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2">
+                    {index + 1}. {proposal.destination?.name} 
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <Chip label={`${proposal.weightedScore.toFixed(1)} Pkt`} size="small" />
+                    <Chip label={`${proposal.voteCount} Stimmen`} size="small" variant="outlined" />
+                    <Chip label={`€${proposal.pricePerPerson}`} size="small" color="primary" />
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
+      </Alert>
+    );
+  };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4 }}>
@@ -120,19 +203,13 @@ const VotingResults = ({ groupId, group }) => {
     );
   }
 
-  // Sortiere Vorschläge nach gewichteter Punktzahl
-  const sortedProposals = [...proposals].sort((a, b) => {
-    if (b.weightedScore !== a.weightedScore) {
-      return (b.weightedScore || 0) - (a.weightedScore || 0);
-    }
-    return (b.voteCount || 0) - (a.voteCount || 0);
-  });
-
-  const totalVotes = proposals.reduce((sum, proposal) => sum + (proposal.voteCount || 0), 0);
   const maxVotes = Math.max(...proposals.map(p => p.voteCount || 0), 1);
 
   return (
     <Box>
+      {/* Tie-Breaking Info anzeigen */}
+      <TieBreakingInfo />
+
       {/* Zusammenfassung */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Typography variant="h5" gutterBottom>
@@ -146,36 +223,48 @@ const VotingResults = ({ groupId, group }) => {
         )}
         
         <Grid container spacing={3}>
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <PollIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-                <Typography variant="h4">{proposals.length}</Typography>
+                <Typography variant="h4">{statistics?.totalProposals || 0}</Typography>
                 <Typography color="text.secondary">Vorschläge</Typography>
               </CardContent>
             </Card>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <PersonIcon sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
-                <Typography variant="h4">{totalVotes}</Typography>
+                <Typography variant="h4">{statistics?.totalVotes || 0}</Typography>
                 <Typography color="text.secondary">Stimmen gesamt</Typography>
               </CardContent>
             </Card>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <TrophyIcon sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
                 <Typography variant="h4">
-                  {group?.status === 'decided' ? '1' : '?'}
+                  {statistics?.hasDecision ? '1' : '?'}
                 </Typography>
                 <Typography color="text.secondary">
-                  {group?.status === 'decided' ? 'Gewinner' : 'Noch offen'}
+                  {statistics?.hasDecision ? 'Gewinner' : 'Noch offen'}
                 </Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          <Grid item xs={12} sm={3}>
+            <Card>
+              <CardContent sx={{ textAlign: 'center' }}>
+                <BalanceIcon sx={{ fontSize: 40, color: 'secondary.main', mb: 1 }} />
+                <Typography variant="h4">
+                  {statistics?.avgScore?.toFixed(1) || '0.0'}
+                </Typography>
+                <Typography color="text.secondary">Ø Bewertung</Typography>
               </CardContent>
             </Card>
           </Grid>
@@ -194,14 +283,17 @@ const VotingResults = ({ groupId, group }) => {
                   <TableCell>Preis</TableCell>
                   <TableCell align="center">Bewertung</TableCell>
                   <TableCell align="center">Stimmen</TableCell>
+                  <TableCell align="center">Super/Nein</TableCell>
                   <TableCell align="center">Beliebtheit</TableCell>
                   <TableCell align="center">Details</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sortedProposals.map((proposal, index) => {
+                {proposals.map((proposal, index) => {
                   const isWinner = group?.winningProposal === proposal._id;
                   const votePercentage = maxVotes > 0 ? ((proposal.voteCount || 0) / maxVotes) * 100 : 0;
+                  const superVotes = proposal.voteDistribution ? proposal.voteDistribution[1] : 0;
+                  const noVotes = proposal.voteDistribution ? proposal.voteDistribution[3] : 0;
                   
                   return (
                     <TableRow 
@@ -222,6 +314,9 @@ const VotingResults = ({ groupId, group }) => {
                           )}
                           {isWinner && (
                             <Chip label="Gewinner" color="success" size="small" />
+                          )}
+                          {tieInfo?.tiedProposals?.some(tp => tp._id === proposal._id) && !isWinner && (
+                            <Chip label="Gleichstand" color="warning" size="small" />
                           )}
                         </Box>
                       </TableCell>
@@ -259,6 +354,23 @@ const VotingResults = ({ groupId, group }) => {
                         <Typography variant="h6">
                           {proposal.voteCount || 0}
                         </Typography>
+                      </TableCell>
+                      
+                      <TableCell align="center">
+                        <Box display="flex" gap={0.5} justifyContent="center">
+                          <Chip 
+                            label={`👍 ${superVotes}`} 
+                            size="small" 
+                            color="success"
+                            variant="outlined"
+                          />
+                          <Chip 
+                            label={`👎 ${noVotes}`} 
+                            size="small" 
+                            color="error"
+                            variant="outlined"
+                          />
+                        </Box>
                       </TableCell>
                       
                       <TableCell align="center">
@@ -312,11 +424,22 @@ const VotingResults = ({ groupId, group }) => {
           {(() => {
             const winner = proposals.find(p => p._id === group.winningProposal);
             return winner ? (
-              <Typography>
-                <strong>{winner.destination?.name}, {winner.destination?.country}</strong> 
-                {winner.hotelName && ` im ${winner.hotelName}`} 
-                für €{winner.pricePerPerson} pro Person wurde als Reiseziel gewählt.
-              </Typography>
+              <Box>
+                <Typography gutterBottom>
+                  <strong>{winner.destination?.name}, {winner.destination?.country}</strong> 
+                  {winner.hotelName && ` im ${winner.hotelName}`} 
+                  für €{winner.pricePerPerson} pro Person wurde als Reiseziel gewählt.
+                </Typography>
+                {tieInfo?.hasTie && (
+                  <Typography variant="body2" sx={{ mt: 1, fontStyle: 'italic' }}>
+                    Entschieden durch: {tieInfo.tieBreakingMethod === 'vote_count' ? 'mehr Stimmen' :
+                                      tieInfo.tieBreakingMethod === 'super_votes' ? 'mehr "Super"-Bewertungen' :
+                                      tieInfo.tieBreakingMethod === 'fewer_no_votes' ? 'weniger "Nein"-Bewertungen' :
+                                      tieInfo.tieBreakingMethod === 'price_performance' ? 'besseres Preis-Leistungs-Verhältnis' :
+                                      'Reihenfolge der Einreichung'}
+                  </Typography>
+                )}
+              </Box>
             ) : (
               <Typography>Das gewählte Reiseziel konnte nicht geladen werden.</Typography>
             );
@@ -343,6 +466,38 @@ const VotingResults = ({ groupId, group }) => {
               <Typography variant="body2" color="text.secondary" gutterBottom>
                 {selectedProposal.voteCount || 0} Stimme{(selectedProposal.voteCount || 0) !== 1 ? 'n' : ''} abgegeben
               </Typography>
+              
+              {/* Enhanced Vote Statistics */}
+              {selectedProposal.voteDistribution && (
+                <Box sx={{ my: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Bewertungsverteilung:
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid item xs={4}>
+                      <Box textAlign="center">
+                        <ThumbUpIcon color="success" />
+                        <Typography variant="h6">{selectedProposal.voteDistribution[1] || 0}</Typography>
+                        <Typography variant="caption">Super</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Box textAlign="center">
+                        <NeutralIcon color="warning" />
+                        <Typography variant="h6">{selectedProposal.voteDistribution[2] || 0}</Typography>
+                        <Typography variant="caption">OK</Typography>
+                      </Box>
+                    </Grid>
+                    <Grid item xs={4}>
+                      <Box textAlign="center">
+                        <ThumbDownIcon color="error" />
+                        <Typography variant="h6">{selectedProposal.voteDistribution[3] || 0}</Typography>
+                        <Typography variant="caption">Nein</Typography>
+                      </Box>
+                    </Grid>
+                  </Grid>
+                </Box>
+              )}
               
               <Divider sx={{ my: 2 }} />
               
@@ -380,45 +535,6 @@ const VotingResults = ({ groupId, group }) => {
                   Noch keine Bewertungen abgegeben.
                 </Typography>
               )}
-              
-              {/* Vote Distribution */}
-              <Divider sx={{ my: 2 }} />
-              <Typography variant="subtitle2" gutterBottom>
-                Verteilung:
-              </Typography>
-              
-              {(() => {
-                const distribution = { 1: 0, 2: 0, 3: 0 };
-                votes.forEach(vote => {
-                  distribution[vote.rank] = (distribution[vote.rank] || 0) + 1;
-                });
-                
-                return (
-                  <Grid container spacing={1}>
-                    <Grid item xs={4}>
-                      <Box textAlign="center">
-                        <ThumbUpIcon color="success" />
-                        <Typography variant="h6">{distribution[1]}</Typography>
-                        <Typography variant="caption">Super</Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Box textAlign="center">
-                        <NeutralIcon color="warning" />
-                        <Typography variant="h6">{distribution[2]}</Typography>
-                        <Typography variant="caption">OK</Typography>
-                      </Box>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Box textAlign="center">
-                        <ThumbDownIcon color="error" />
-                        <Typography variant="h6">{distribution[3]}</Typography>
-                        <Typography variant="caption">Nein</Typography>
-                      </Box>
-                    </Grid>
-                  </Grid>
-                );
-              })()}
             </Box>
           )}
         </DialogContent>
