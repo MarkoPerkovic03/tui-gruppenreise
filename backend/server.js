@@ -8,6 +8,17 @@ const app = express();
 // Verbindung zur Datenbank herstellen
 connectDB();
 
+// ===== MODELS EXPLIZIT LADEN =====
+console.log('📦 Loading models...');
+require('./models/user');
+require('./models/Group');
+require('./models/Destination');
+require('./models/TravelOffer');
+require('./models/Proposal');
+require('./models/Vote');
+require('./models/Notification');
+require('./models/BookingSession'); // ← WICHTIG!
+console.log('✅ All models loaded');
 // Middleware
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174'], // Vite Dev Server

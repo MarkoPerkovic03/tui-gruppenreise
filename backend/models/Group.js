@@ -60,7 +60,7 @@ const groupSchema = new mongoose.Schema({
   }],
   status: {
     type: String,
-    enum: ['planning', 'voting', 'decided', 'booked', 'completed', 'cancelled'],
+    enum: ['planning', 'voting', 'decided', 'booking', 'booked', 'completed', 'cancelled'],
     default: 'planning'
   },
   votingDeadline: {
