@@ -63,6 +63,7 @@ const UserProfile = () => {
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
+  const [upcomingGroups, setUpcomingGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState(0);
@@ -112,6 +113,17 @@ const UserProfile = () => {
       setRecommendations(response.data.offers || []);
     } catch (error) {
       console.error('Fehler beim Laden der Empfehlungen:', error);
+    }
+  };
+ const loadUpcomingGroups = async () => {
+    try {
+      const response = await api.get('/groups');
+      const upcoming = response.data.filter(g =>
+        ['decided', 'booking', 'booked'].includes(g.status)
+      );
+      setUpcomingGroups(upcoming);
+    } catch (error) {
+      console.error('Fehler beim Laden der kommenden Reisen:', error);
     }
   };
 
@@ -544,19 +556,43 @@ const UserProfile = () => {
           </Grid>
           
           <Grid item xs={12}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>Mitgliedschaft</Typography>
+              <Typography>
+                Mitglied seit: {new Date(stats.memberSince).toLocaleDateString('de-DE')}
+              </Typography>
+              <Typography>
+                Letzte Aktivität: {new Date(stats.lastActive).toLocaleDateString('de-DE')}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {upcomingGroups.length > 0 && (
+          <Grid item xs={12}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>Mitgliedschaft</Typography>
-                <Typography>
-                  Mitglied seit: {new Date(stats.memberSince).toLocaleDateString('de-DE')}
-                </Typography>
-                <Typography>
-                  Letzte Aktivität: {new Date(stats.lastActive).toLocaleDateString('de-DE')}
-                </Typography>
+                <Typography variant="h6" gutterBottom>Kommende Reisen</Typography>
+                <List>
+                  {upcomingGroups.map(group => (
+                    <ListItem key={group._id} disableGutters>
+                      <ListItemIcon><FlightIcon /></ListItemIcon>
+                      <ListItemText
+                        primary={group.name}
+                        secondary={
+                          `${new Date(group.winningProposal?.departureDate).toLocaleDateString('de-DE')} · ` +
+                          `${group.winningProposal?.destination?.name || ''}`
+                        }
+                      />
+                    </ListItem>
+                  ))}
+                </List>
               </CardContent>
             </Card>
           </Grid>
-        </Grid>
+        )}
+      </Grid>
       )}
 
       {activeTab === 3 && (

@@ -10,7 +10,12 @@ router.get('/', auth, async (req, res) => {
     
     const groups = await Group.find({ 'members.user': req.user.id })
       .populate('creator', 'name email')
-      .populate('members.user', 'name email');
+      .populate('members.user', 'name email')
+      .populate({
+        path: 'winningProposal',
+        select: 'destination hotelName pricePerPerson departureDate returnDate',
+        populate: { path: 'destination', select: 'name country' }
+      });
     
     console.log('✅ Gefundene Gruppen:', groups.length);
     res.json(groups);
@@ -65,7 +70,12 @@ router.get('/:id', auth, async (req, res) => {
     
     const group = await Group.findById(req.params.id)
       .populate('creator', 'name email')
-      .populate('members.user', 'name email');
+      .populate('members.user', 'name email')
+      .populate({
+        path: 'winningProposal',
+        select: 'destination hotelName pricePerPerson departureDate returnDate',
+        populate: { path: 'destination', select: 'name country' }
+      });
     
     if (!group) {
       console.log('❌ Gruppe nicht gefunden:', req.params.id);
