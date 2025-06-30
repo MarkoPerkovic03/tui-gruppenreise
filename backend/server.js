@@ -1,4 +1,4 @@
-// backend/server.js - ERWEITERT mit Invite Routes
+// backend/server.js - ERWEITERT mit Booking Routes (nur die Ergänzung)
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -24,6 +24,19 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));
 app.use('/api/travel-offers', require('./routes/travelOffers'));
 app.use('/api/proposals', require('./routes/proposals'));
+
+// ===== NEU: BOOKING ROUTES =====
+try {
+  console.log('🔍 Loading booking routes...');
+  const bookingRoutes = require('./routes/bookings');
+  app.use('/api/bookings', bookingRoutes);
+  console.log('✅ Booking routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load booking routes:', error);
+  console.log('💡 Make sure ./routes/bookings.js exists');
+}
+
+// Invite Routes
 try {
   console.log('🔍 Loading invite routes...');
   const inviteRoutes = require('./routes/invites');
@@ -61,5 +74,6 @@ app.listen(PORT, () => {
   console.log(`👥 Users API verfügbar unter http://localhost:${PORT}/api/users`);
   console.log(`🏠 Groups API verfügbar unter http://localhost:${PORT}/api/groups`);
   console.log(`✈️ Proposals API verfügbar unter http://localhost:${PORT}/api/proposals`);
-  console.log(`🔗 Invites API verfügbar unter http://localhost:${PORT}/api/invites`); // ← NEU
+  console.log(`🔗 Invites API verfügbar unter http://localhost:${PORT}/api/invites`);
+  console.log(`💳 Bookings API verfügbar unter http://localhost:${PORT}/api/bookings`); // ← NEU
 });

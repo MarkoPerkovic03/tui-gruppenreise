@@ -1,4 +1,4 @@
-// client/src/components/VotingResults.jsx - ENHANCED VERSION mit Tie-Breaking Info
+// client/src/components/VotingResults.jsx - UPDATE mit Booking Integration
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -44,11 +44,17 @@ import {
   Info as InfoIcon,
   Balance as BalanceIcon,
   AttachMoney as MoneyIcon,
-  AccessTime as TimeIcon
+  AccessTime as TimeIcon,
+  FlightTakeoff as FlightIcon,
+  BookOnline as BookingIcon
 } from '@mui/icons-material';
+import { useAuth } from '../App';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
 const VotingResults = ({ groupId, group }) => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [proposals, setProposals] = useState([]);
   const [tieInfo, setTieInfo] = useState(null);
   const [statistics, setStatistics] = useState(null);
@@ -57,6 +63,12 @@ const VotingResults = ({ groupId, group }) => {
   const [detailDialog, setDetailDialog] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState(null);
   const [votes, setVotes] = useState([]);
+  const [bookingLoading, setBookingLoading] = useState(false);
+
+  // Check if user is admin
+  const isAdmin = group?.members?.some(member => 
+    member.user?._id === user?.id && member.role === 'admin'
+  );
 
   useEffect(() => {
     loadResults();
@@ -89,6 +101,33 @@ const VotingResults = ({ groupId, group }) => {
     } catch (error) {
       console.error('Fehler beim Laden der Abstimmungsdetails:', error);
     }
+  };
+
+  // ===== NEU: BOOKING INTEGRATION =====
+  const handleStartBooking = async () => {
+    try {
+      setBookingLoading(true);
+      
+      console.log('🎯 Starte Buchungsprozess für Gruppe:', groupId);
+      
+      // Initialize booking session
+      const response = await api.post(`/bookings/initialize/${groupId}`);
+      
+      console.log('✅ Buchung initialisiert:', response.data);
+      
+      // Navigate to booking overview
+      navigate(`/groups/${groupId}/booking`);
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Starten der Buchung:', error);
+      setError(error.response?.data?.message || 'Fehler beim Starten der Buchung');
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleGoToBooking = () => {
+    navigate(`/groups/${groupId}/booking`);
   };
 
   const getRankIcon = (rank) => {
@@ -209,6 +248,67 @@ const VotingResults = ({ groupId, group }) => {
     <Box>
       {/* Tie-Breaking Info anzeigen */}
       <TieBreakingInfo />
+
+      {/* ===== NEU: BOOKING CALL-TO-ACTION ===== */}
+      {group?.status === 'decided' && group?.winningProposal && (
+        <Paper sx={{ p: 3, mb: 3, bgcolor: 'success.light', color: 'success.contrastText' }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Box>
+              <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TrophyIcon />
+                Entscheidung gefallen!
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                Die Gruppe hat sich für ein Reiseziel entschieden. 
+                {isAdmin ? ' Sie können jetzt die Buchung starten.' : ' Die Buchung kann nun gestartet werden.'}
+              </Typography>
+              {(() => {
+                const winner = proposals.find(p => p._id === group.winningProposal);
+                return winner && (
+                  <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                    Gewinner: <strong>{winner.destination?.name}</strong> für €{winner.pricePerPerson}/Person
+                  </Typography>
+                );
+              })()}
+            </Box>
+            
+            <Box display="flex" gap={2}>
+              {isAdmin && group?.status === 'decided' && (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={bookingLoading ? <CircularProgress size={20} color="inherit" /> : <BookingIcon />}
+                  onClick={handleStartBooking}
+                  disabled={bookingLoading}
+                  sx={{ 
+                    bgcolor: 'primary.main', 
+                    color: 'primary.contrastText',
+                    '&:hover': { bgcolor: 'primary.dark' }
+                  }}
+                >
+                  {bookingLoading ? 'Starte Buchung...' : 'Buchung starten'}
+                </Button>
+              )}
+              
+              {group?.status === 'booking' && (
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<FlightIcon />}
+                  onClick={handleGoToBooking}
+                  sx={{ 
+                    bgcolor: 'warning.main', 
+                    color: 'warning.contrastText',
+                    '&:hover': { bgcolor: 'warning.dark' }
+                  }}
+                >
+                  Zur Buchungsübersicht
+                </Button>
+              )}
+            </Box>
+          </Box>
+        </Paper>
+      )}
 
       {/* Zusammenfassung */}
       <Paper sx={{ p: 3, mb: 3 }}>
@@ -439,6 +539,13 @@ const VotingResults = ({ groupId, group }) => {
                                       'Reihenfolge der Einreichung'}
                   </Typography>
                 )}
+                
+                {/* Call-to-Action für nächsten Schritt */}
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(255,255,255,0.1)', borderRadius: 1 }}>
+                  <Typography variant="body2">
+                    <strong>Nächster Schritt:</strong> {isAdmin ? 'Starten Sie die Buchung um die Zahlungen zu sammeln.' : 'Warten Sie auf den Start der Buchungsphase.'}
+                  </Typography>
+                </Box>
               </Box>
             ) : (
               <Typography>Das gewählte Reiseziel konnte nicht geladen werden.</Typography>

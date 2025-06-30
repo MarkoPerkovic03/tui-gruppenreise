@@ -1,4 +1,4 @@
-// client/src/App.jsx - KORRIGIERTE VERSION
+// client/src/App.jsx - UPDATE mit Booking Route
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, AppBar, Toolbar, Typography, Container, Box, Button } from '@mui/material';
@@ -8,13 +8,15 @@ import GroupDetail from './components/GroupDetail';
 import Login from './components/Login';
 import TravelOffers from './components/TravelOffers';
 import UserProfile from './components/UserProfile';
-import InviteJoinPage from './components/InviteJoinPage'; // ← NEU
+import InviteJoinPage from './components/InviteJoinPage';
+import BookingOverview from './components/BookingOverview'; // ← NEU
 import FlightIcon from '@mui/icons-material/Flight';
 import HomeIcon from '@mui/icons-material/Home';
 import LogoutIcon from '@mui/icons-material/Logout';
 import BeachAccessIcon from '@mui/icons-material/BeachAccess';
 import HotelIcon from '@mui/icons-material/Hotel';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import BookingIcon from '@mui/icons-material/BookOnline'; // ← NEU
 import { useState, useEffect, createContext, useContext } from 'react';
 import AdminDashboard from './components/AdminDashboard';
 import AdminTravelOffers from './components/AdminTravelOffers'; 
@@ -264,7 +266,7 @@ function App() {
                   } 
                 />
                 
-                {/* ===== NEU: Invite Route (öffentlich zugänglich) ===== */}
+                {/* Invite Route (öffentlich zugänglich) */}
                 <Route
                   path="/invite/:token"
                   element={<InviteJoinPage />}
@@ -294,6 +296,17 @@ function App() {
                     </PrivateRoute>
                   }
                 />
+                
+                {/* ===== NEU: BOOKING ROUTE ===== */}
+                <Route
+                  path="/groups/:id/booking"
+                  element={
+                    <PrivateRoute>
+                      <BookingOverview />
+                    </PrivateRoute>
+                  }
+                />
+                
                 <Route
                   path="/travel-offers"
                   element={
