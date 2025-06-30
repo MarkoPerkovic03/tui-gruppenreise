@@ -114,7 +114,14 @@ router.post('/initialize/:groupId', auth, async (req, res) => {
     
     if (existingBooking) {
       console.log('⚠️ Booking session already exists:', existingBooking._id);
-      return res.status(400).json({ 
+     
+      if (group.status !== 'booking') {
+        group.status = 'booking';
+        await group.save();
+        console.log('🔄 Group status updated to "booking" due to existing session');
+      }
+
+      return res.status(200).json({
         message: 'Buchungsprozess wurde bereits gestartet',
         bookingSession: existingBooking
       });
@@ -283,6 +290,199 @@ router.get('/group/:groupId', auth, async (req, res) => {
   } catch (error) {
     console.error('❌ Fehler beim Laden der Buchungssession:', error);
     res.status(500).json({ message: 'Fehler beim Laden der Buchungsdaten' });
+  }
+});
+// @route   POST /api/bookings/:sessionId/reserve
+// @desc    Mark user's spot as reserved
+// @access  Private (Group members)
+router.post('/:sessionId/reserve', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { notes = '' } = req.body;
+
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    const booking = await BookingSessionModel.findById(sessionId).populate('group');
+    if (!booking) {
+      return res.status(404).json({ message: 'Buchungssession nicht gefunden' });
+    }
+
+    const isMember = booking.group.members.some(m => m.user.toString() === req.user.id);
+    if (!isMember) {
+      return res.status(403).json({ message: 'Zugriff verweigert' });
+    }
+
+    try {
+      booking.reserveSpot(req.user.id, notes);
+      await booking.save();
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    const populated = await BookingSessionModel.findById(sessionId)
+      .populate('payments.user', 'name email profile.firstName profile.lastName');
+    const userPayment = populated.payments.find(p => p.user._id.toString() === req.user.id.toString());
+
+    res.json({ bookingSession: populated, userPaymentStatus: userPayment || null });
+  } catch (error) {
+    console.error('❌ Fehler beim Reservieren:', error);
+    res.status(500).json({ message: 'Fehler beim Reservieren des Platzes' });
+  }
+});
+
+// @route   POST /api/bookings/:sessionId/pay
+// @desc    Mark a payment as paid
+// @access  Private (Group members, admins can specify userId)
+router.post('/:sessionId/pay', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { paymentMethod = 'bank_transfer', notes = '', userId } = req.body;
+
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    const booking = await BookingSessionModel.findById(sessionId).populate('group');
+    if (!booking) {
+      return res.status(404).json({ message: 'Buchungssession nicht gefunden' });
+    }
+
+    const isAdmin = booking.group.members.some(m => m.user.toString() === req.user.id && m.role === 'admin');
+    const targetId = userId && isAdmin ? userId : req.user.id;
+    const isMember = booking.group.members.some(m => m.user.toString() === targetId);
+    if (!isMember) {
+      return res.status(403).json({ message: 'Zugriff verweigert' });
+    }
+
+    try {
+      booking.markPaymentAsPaid(targetId, paymentMethod, notes);
+    } catch (err) {
+      return res.status(400).json({ message: err.message });
+    }
+
+    if (booking.isReadyToBook) {
+      booking.status = 'ready_to_book';
+    }
+
+    await booking.save();
+    await booking.group.save();
+
+    const populated = await BookingSessionModel.findById(sessionId)
+      .populate('group', 'name members maxParticipants')
+      .populate('payments.user', 'name email profile.firstName profile.lastName')
+      .populate('finalBooking.bookedBy', 'name email');
+    const userPayment = populated.payments.find(p => p.user._id.toString() === req.user.id.toString());
+
+    res.json({ bookingSession: populated, userPaymentStatus: userPayment || null });
+  } catch (error) {
+    console.error('❌ Fehler beim Markieren der Zahlung:', error);
+    res.status(500).json({ message: 'Fehler beim Aktualisieren der Zahlung' });
+  }
+});
+
+// @route   POST /api/bookings/:sessionId/cancel-participation
+// @desc    Cancel participation and refund payment
+// @access  Private (Group members, admins can specify userId)
+router.post('/:sessionId/cancel-participation', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { userId } = req.body;
+
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    const booking = await BookingSessionModel.findById(sessionId).populate('group');
+    if (!booking) {
+      return res.status(404).json({ message: 'Buchungssession nicht gefunden' });
+    }
+
+    const isAdmin = booking.group.members.some(m => m.user.toString() === req.user.id && m.role === 'admin');
+    const targetId = userId && isAdmin ? userId : req.user.id;
+    const isMember = booking.group.members.some(m => m.user.toString() === targetId);
+    if (!isMember) {
+      return res.status(403).json({ message: 'Zugriff verweigert' });
+    }
+
+    const payment = booking.payments.find(p => p.user.toString() === targetId);
+    if (!payment) {
+      return res.status(404).json({ message: 'Zahlungseintrag nicht gefunden' });
+    }
+
+    payment.status = 'refunded';
+    payment.notes = 'Teilnahme storniert';
+
+    await booking.save();
+
+    const populated = await BookingSessionModel.findById(sessionId)
+      .populate('payments.user', 'name email profile.firstName profile.lastName');
+
+    res.json({ bookingSession: populated });
+  } catch (error) {
+    console.error('❌ Fehler beim Stornieren der Teilnahme:', error);
+    res.status(500).json({ message: 'Fehler beim Stornieren der Teilnahme' });
+  }
+});
+
+// @route   POST /api/bookings/:sessionId/finalize
+// @desc    Finalize booking after all payments received
+// @access  Private (Admin only)
+router.post('/:sessionId/finalize', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { confirmationData = '', notes = '' } = req.body;
+
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    const booking = await BookingSessionModel.findById(sessionId).populate('group');
+    if (!booking) {
+      return res.status(404).json({ message: 'Buchungssession nicht gefunden' });
+    }
+
+    const isAdmin = booking.group.members.some(m => m.user.toString() === req.user.id && m.role === 'admin');
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Nur Admins können die Buchung abschließen' });
+    }
+
+    booking.status = 'booked';
+    booking.finalBooking = {
+      bookingReference: confirmationData,
+      bookedAt: new Date(),
+      bookedBy: req.user.id,
+      bookingConfirmation: notes
+    };
+
+    await booking.save();
+    booking.group.status = 'booked';
+    await booking.group.save();
+
+    const populated = await BookingSessionModel.findById(sessionId)
+      .populate('group', 'name members')
+      .populate('payments.user', 'name email profile.firstName profile.lastName')
+      .populate('finalBooking.bookedBy', 'name email');
+
+    res.json({ bookingSession: populated });
+  } catch (error) {
+    console.error('❌ Fehler beim Finalisieren der Buchung:', error);
+    res.status(500).json({ message: 'Fehler beim Abschließen der Buchung' });
+  }
+});
+
+// @route   POST /api/bookings/:sessionId/send-reminders
+// @desc    Send payment reminders (mock implementation)
+// @access  Private (Admin only)
+router.post('/:sessionId/send-reminders', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    const booking = await BookingSessionModel.findById(sessionId).populate('group');
+    if (!booking) {
+      return res.status(404).json({ message: 'Buchungssession nicht gefunden' });
+    }
+
+    const isAdmin = booking.group.members.some(m => m.user.toString() === req.user.id && m.role === 'admin');
+    if (!isAdmin) {
+      return res.status(403).json({ message: 'Nur Admins können Erinnerungen senden' });
+    }
+
+    console.log('📧 Payment reminders sent for booking', sessionId);
+    res.json({ message: 'Erinnerungen versendet' });
+  } catch (error) {
+    console.error('❌ Fehler beim Senden der Erinnerungen:', error);
+    res.status(500).json({ message: 'Fehler beim Senden der Erinnerungen' });
   }
 });
 
