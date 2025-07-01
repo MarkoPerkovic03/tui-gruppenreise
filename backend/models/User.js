@@ -296,47 +296,33 @@ userSchema.statics.getActiveUsers = function() {
   return this.find({ isActive: true }).select('-password');
 };
 
-userSchema.statics.getUserStats = async function(userId) {
+userSchema.statics.getUserStats = async function (userId) {
   try {
     const user = await this.findById(userId);
     if (!user) return null;
 
-    // Für jetzt einfache Statistiken - du kannst später echte Gruppenlogik hinzufügen
     const stats = {
       totalGroups: 0,
       activeGroups: 0,
       completedTrips: 0,
       totalVotes: 0,
       memberSince: user.createdAt,
-      lastActive: user.lastLogin,
-      profileCompletion: user.profile?.profileCompletion || 0
+      lastActive: user.lastLogin || new Date(),
+      profileCompletion: user.profile?.profileCompletion || 0,
     };
 
-    // Falls du Groups implementiert hast, kannst du das hier erweitern:
     try {
       const Group = mongoose.model('Group');
-      const userGroups = await Group.find({
-        $or: [
-          { members: userId },
-          { 'members.user': userId },
-          { createdBy: userId }
-        ]
-      });
+      const Vote = mongoose.model('Vote');
 
-      const now = new Date();
-      const activeGroups = userGroups.filter(group => 
-        group.travelPeriod && new Date(group.travelPeriod.start) > now
-      );
-      const completedTrips = userGroups.filter(group => 
-        group.travelPeriod && new Date(group.travelPeriod.end) < now
-      );
+      const groups = await Group.find({ 'members.user': userId }).select('status');
+      stats.totalGroups = groups.length;
+      stats.activeGroups = groups.filter((g) => g.status === 'booking').length;
+      stats.completedTrips = groups.filter((g) => g.status === 'booked').length;
 
-      stats.totalGroups = userGroups.length;
-      stats.activeGroups = activeGroups.length;
-      stats.completedTrips = completedTrips.length;
+      stats.totalVotes = await Vote.countDocuments({ user: userId });
     } catch (groupError) {
-      // Group Model nicht gefunden oder andere Fehler - verwende Standardwerte
-      console.log('Group Model nicht gefunden, verwende Standard-Statistiken');
+      console.error('Fehler beim Berechnen der Benutzerstatistiken:', groupError);
     }
 
     return stats;

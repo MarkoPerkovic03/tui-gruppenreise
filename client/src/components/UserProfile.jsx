@@ -116,12 +116,19 @@ const UserProfile = () => {
       console.error('Fehler beim Laden der Empfehlungen:', error);
     }
   };
- const loadUpcomingGroups = async () => {
+   const loadUpcomingGroups = async () => {
     try {
       const response = await api.get('/groups');
-      const upcoming = response.data.filter(g =>
-        ['decided', 'booking', 'booked'].includes(g.status)
-      );
+      const upcoming = response.data
+        .filter((g) =>
+          ['decided', 'booking', 'booked'].includes((g.status || '').toLowerCase()) &&
+          g.winningProposal
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.winningProposal.departureDate) -
+            new Date(b.winningProposal.departureDate)
+        );
       setUpcomingGroups(upcoming);
     } catch (error) {
       console.error('Fehler beim Laden der kommenden Reisen:', error);
@@ -561,10 +568,10 @@ const UserProfile = () => {
             <CardContent>
               <Typography variant="h6" gutterBottom>Mitgliedschaft</Typography>
               <Typography>
-                Mitglied seit: {new Date(stats.memberSince).toLocaleDateString('de-DE')}
+                Mitglied seit: {stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('de-DE') : '—'}
               </Typography>
               <Typography>
-                Letzte Aktivität: {new Date(stats.lastActive).toLocaleDateString('de-DE')}
+                Letzte Aktivität: {stats.lastActive ? new Date(stats.lastActive).toLocaleDateString('de-DE') : '—'}
               </Typography>
             </CardContent>
           </Card>
