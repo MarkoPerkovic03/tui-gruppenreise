@@ -35,6 +35,7 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));
 app.use('/api/travel-offers', require('./routes/travelOffers'));
 app.use('/api/proposals', require('./routes/proposals'));
+app.use('/api/payments', require('./routes/payments'));
 
 // ===== NEU: BOOKING ROUTES =====
 try {

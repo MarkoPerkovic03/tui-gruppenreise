@@ -1,4 +1,4 @@
-// client/src/components/BookingOverview.jsx
+// client/src/components/BookingOverview.jsx - ERWEITERT mit PaymentManager Integration
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -11,12 +11,6 @@ import {
   Alert,
   Chip,
   LinearProgress,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -26,25 +20,16 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  List,
-  ListItem,
-  ListItemIcon,
-  ListItemText,
-  ListItemAvatar,
-  Avatar,
-  Divider,
   Stack,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  IconButton,
-  Tooltip,
-  CircularProgress
+  CircularProgress,
+  Tabs,
+  Tab,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from '@mui/material';
 import {
   FlightTakeoff as FlightIcon,
-  Hotel as HotelIcon,
   Euro as EuroIcon,
   Group as GroupIcon,
   CheckCircle as CheckIcon,
@@ -56,14 +41,15 @@ import {
   CalendarToday as CalendarIcon,
   LocationOn as LocationIcon,
   Payment as PaymentIcon,
-  AdminPanelSettings as AdminIcon,
-  Person as PersonIcon,
-  Cancel as CancelIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  ExpandMore as ExpandMoreIcon,
+  Assessment as StatsIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../utils/api';
+import PaymentManager from './PaymentManager'; // Import der neuen PaymentManager Komponente
 
 const BookingOverview = () => {
   const { id: groupId } = useParams();
@@ -75,17 +61,12 @@ const BookingOverview = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState('');
+  const [activeTab, setActiveTab] = useState(0);
   
-  // Dialogs
-  const [paymentDialog, setPaymentDialog] = useState(false);
-  const [cancelDialog, setCancelDialog] = useState(false);
+  // Dialog States
   const [finalizeDialog, setFinalizeDialog] = useState(false);
   
-  // Form states
-  const [paymentData, setPaymentData] = useState({
-    paymentMethod: 'bank_transfer',
-    notes: ''
-  });
+  // Form States
   const [finalizeData, setFinalizeData] = useState({
     confirmationData: '',
     notes: ''
@@ -130,59 +111,6 @@ const BookingOverview = () => {
     } catch (error) {
       console.error('❌ Fehler beim Initialisieren der Buchung:', error);
       setError(error.response?.data?.message || 'Fehler beim Starten der Buchung');
-    } finally {
-      setActionLoading('');
-    }
-  };
-
-  const handleReserveSpot = async () => {
-    try {
-      setActionLoading('reserving');
-      
-      await api.post(`/bookings/${bookingSession._id}/reserve`, {
-        notes: 'Platz via Web-Interface reserviert'
-      });
-      
-      await loadBookingSession();
-      
-    } catch (error) {
-      console.error('❌ Fehler beim Reservieren:', error);
-      setError(error.response?.data?.message || 'Fehler beim Reservieren des Platzes');
-    } finally {
-      setActionLoading('');
-    }
-  };
-
-  const handleMarkAsPaid = async () => {
-    try {
-      setActionLoading('paying');
-      
-      await api.post(`/bookings/${bookingSession._id}/pay`, paymentData);
-      
-      await loadBookingSession();
-      setPaymentDialog(false);
-      setPaymentData({ paymentMethod: 'bank_transfer', notes: '' });
-      
-    } catch (error) {
-      console.error('❌ Fehler beim Markieren der Zahlung:', error);
-      setError(error.response?.data?.message || 'Fehler beim Verarbeiten der Zahlung');
-    } finally {
-      setActionLoading('');
-    }
-  };
-
-  const handleCancelParticipation = async () => {
-    try {
-      setActionLoading('cancelling');
-      
-      await api.post(`/bookings/${bookingSession._id}/cancel-participation`);
-      
-      await loadBookingSession();
-      setCancelDialog(false);
-      
-    } catch (error) {
-      console.error('❌ Fehler beim Stornieren:', error);
-      setError(error.response?.data?.message || 'Fehler beim Stornieren der Teilnahme');
     } finally {
       setActionLoading('');
     }
@@ -245,34 +173,12 @@ const BookingOverview = () => {
     }
   };
 
-  const getPaymentStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'warning';
-      case 'reserved': return 'info';
-      case 'paid': return 'success';
-      case 'refunded': return 'error';
-      default: return 'default';
-    }
-  };
-
-  const getPaymentStatusLabel = (status) => {
-    switch (status) {
-      case 'pending': return 'Ausstehend';
-      case 'reserved': return 'Reserviert';
-      case 'paid': return 'Bezahlt';
-      case 'refunded': return 'Erstattet';
-      default: return status;
-    }
-  };
-
+  // Check if user is admin
   const isAdmin = bookingSession?.group?.members?.some(member => 
     member.user === user?.id && member.role === 'admin'
   );
 
   const canInitializeBooking = !bookingSession && isAdmin;
-  const canReserve = userPaymentStatus?.status === 'pending';
-  const canPay = userPaymentStatus?.status === 'pending' || userPaymentStatus?.status === 'reserved';
-  const canCancel = userPaymentStatus && bookingSession?.status !== 'booked';
   const canFinalize = isAdmin && bookingSession?.isReadyToBook && bookingSession?.status === 'ready_to_book';
 
   if (loading) {
@@ -300,7 +206,7 @@ const BookingOverview = () => {
             Buchungsübersicht
           </Typography>
           <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-            Verwalten Sie die Buchung Ihrer Gruppenreise
+            Verwalten Sie die Buchung und Zahlungen Ihrer Gruppenreise
           </Typography>
         </Box>
       </Box>
@@ -346,474 +252,435 @@ const BookingOverview = () => {
 
         {/* Booking Session Exists */}
         {bookingSession && (
-          <Grid container spacing={3}>
+          <Box>
             {/* Status Overview */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                  <Box>
-                    <Typography variant="h5" gutterBottom>
-                      Buchungsstatus
-                    </Typography>
-                    <Chip 
-                      label={getStatusLabel(bookingSession.status)} 
-                      color={getStatusColor(bookingSession.status)}
-                      size="large"
-                    />
-                  </Box>
-                  
-                  <Box display="flex" gap={2}>
-                    <Button
-                      startIcon={<RefreshIcon />}
-                      onClick={loadBookingSession}
-                      disabled={loading}
-                    >
-                      Aktualisieren
-                    </Button>
-                    
-                    {isAdmin && bookingSession.status === 'collecting_payments' && (
-                      <Button
-                        startIcon={<SendIcon />}
-                        onClick={handleSendReminders}
-                        disabled={actionLoading === 'sending'}
-                        variant="outlined"
-                      >
-                        Erinnerungen senden
-                      </Button>
-                    )}
-                  </Box>
-                </Box>
-
-                {/* Progress Bar */}
-                <Box sx={{ mb: 3 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                    <Typography variant="subtitle2">
-                      Zahlungsfortschritt
-                    </Typography>
-                    <Typography variant="body2">
-                      {bookingSession.paidParticipants}/{bookingSession.finalDetails.totalParticipants} Teilnehmer
-                    </Typography>
-                  </Box>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={bookingSession.paymentProgress || 0}
-                    sx={{ height: 10, borderRadius: 5 }}
+            <Paper sx={{ p: 3, mb: 3 }}>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                <Box>
+                  <Typography variant="h5" gutterBottom>
+                    Buchungsstatus
+                  </Typography>
+                  <Chip 
+                    label={getStatusLabel(bookingSession.status)} 
+                    color={getStatusColor(bookingSession.status)}
+                    size="large"
                   />
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-                    {bookingSession.paymentProgress || 0}% der Zahlungen eingegangen
+                </Box>
+                
+                <Box display="flex" gap={2}>
+                  <Button
+                    startIcon={<RefreshIcon />}
+                    onClick={loadBookingSession}
+                    disabled={loading}
+                  >
+                    Aktualisieren
+                  </Button>
+                  
+                  {isAdmin && canFinalize && (
+                    <Button
+                      variant="contained"
+                      size="large"
+                      startIcon={<FlightIcon />}
+                      onClick={() => setFinalizeDialog(true)}
+                      disabled={actionLoading === 'finalizing'}
+                    >
+                      {actionLoading === 'finalizing' ? 'Finalisiere...' : 'Buchung abschließen'}
+                    </Button>
+                  )}
+                </Box>
+              </Box>
+
+              {/* Quick Stats */}
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={3}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <EuroIcon sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
+                      <Typography variant="h6">
+                        €{bookingSession.finalDetails?.pricePerPerson || 0}
+                      </Typography>
+                      <Typography variant="caption">pro Person</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                <Grid item xs={12} sm={3}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <GroupIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+                      <Typography variant="h6">
+                        {bookingSession.finalDetails?.totalParticipants || 0}
+                      </Typography>
+                      <Typography variant="caption">Teilnehmer</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                <Grid item xs={12} sm={3}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <CheckIcon sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
+                      <Typography variant="h6">
+                        {bookingSession.paidParticipants || 0}
+                      </Typography>
+                      <Typography variant="caption">Bezahlt</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                
+                <Grid item xs={12} sm={3}>
+                  <Card variant="outlined">
+                    <CardContent sx={{ textAlign: 'center' }}>
+                      <StatsIcon sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
+                      <Typography variant="h6">
+                        {bookingSession.paymentProgress || 0}%
+                      </Typography>
+                      <Typography variant="caption">Fortschritt</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+
+              {/* Progress Bar */}
+              <Box sx={{ mt: 3 }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                  <Typography variant="subtitle2">Zahlungsfortschritt</Typography>
+                  <Typography variant="body2">
+                    {bookingSession.paidParticipants || 0}/{bookingSession.finalDetails?.totalParticipants || 0} Teilnehmer
                   </Typography>
                 </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={bookingSession.paymentProgress || 0}
+                  sx={{ height: 10, borderRadius: 5 }}
+                />
+              </Box>
+            </Paper>
 
-                {/* Key Info Cards */}
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={3}>
-                    <Card variant="outlined">
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <EuroIcon sx={{ fontSize: 40, color: 'success.main', mb: 1 }} />
-                        <Typography variant="h6">
-                          €{bookingSession.finalDetails.pricePerPerson}
-                        </Typography>
-                        <Typography variant="caption">
-                          pro Person
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={3}>
-                    <Card variant="outlined">
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <GroupIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-                        <Typography variant="h6">
-                          {bookingSession.finalDetails.totalParticipants}
-                        </Typography>
-                        <Typography variant="caption">
-                          Teilnehmer
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={3}>
-                    <Card variant="outlined">
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <CalendarIcon sx={{ fontSize: 40, color: 'info.main', mb: 1 }} />
-                        <Typography variant="h6">
-                          {Math.ceil((new Date(bookingSession.paymentDeadline) - new Date()) / (1000 * 60 * 60 * 24))}
-                        </Typography>
-                        <Typography variant="caption">
-                          Tage bis Deadline
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                  
-                  <Grid item xs={12} sm={3}>
-                    <Card variant="outlined">
-                      <CardContent sx={{ textAlign: 'center' }}>
-                        <FlightIcon sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
-                        <Typography variant="h6">
-                          {Math.ceil((new Date(bookingSession.finalDetails.departureDate) - new Date()) / (1000 * 60 * 60 * 24))}
-                        </Typography>
-                        <Typography variant="caption">
-                          Tage bis Abreise
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
+            {/* Tabs für verschiedene Bereiche */}
+            <Paper sx={{ mb: 3 }}>
+              <Tabs value={activeTab} onChange={(e, newValue) => setActiveTab(newValue)}>
+                <Tab icon={<PaymentIcon />} label="Zahlungen" />
+                <Tab icon={<FlightIcon />} label="Reisedetails" />
+                {isAdmin && <Tab icon={<SettingsIcon />} label="Verwaltung" />}
+              </Tabs>
 
-            {/* Travel Details */}
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Reisedetails
-                </Typography>
-                
-                <List>
-                  <ListItem>
-                    <ListItemIcon>
-                      <LocationIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Reiseziel"
-                      secondary={`${bookingSession.finalDetails.destination}${bookingSession.finalDetails.hotelName ? ` - ${bookingSession.finalDetails.hotelName}` : ''}`}
-                    />
-                  </ListItem>
-                  
-                  <ListItem>
-                    <ListItemIcon>
-                      <CalendarIcon color="primary" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Reisezeitraum"
-                      secondary={`${new Date(bookingSession.finalDetails.departureDate).toLocaleDateString('de-DE')} - ${new Date(bookingSession.finalDetails.returnDate).toLocaleDateString('de-DE')}`}
-                    />
-                  </ListItem>
-                  
-                  <ListItem>
-                    <ListItemIcon>
-                      <EuroIcon color="success" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Gesamtkosten"
-                      secondary={`€${bookingSession.finalDetails.totalPrice} (€${bookingSession.finalDetails.pricePerPerson} × ${bookingSession.finalDetails.totalParticipants})`}
-                    />
-                  </ListItem>
-                  
-                  <ListItem>
-                    <ListItemIcon>
-                      <ScheduleIcon color="warning" />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Zahlungsfrist"
-                      secondary={new Date(bookingSession.paymentDeadline).toLocaleDateString('de-DE')}
-                    />
-                  </ListItem>
-                </List>
-              </Paper>
-            </Grid>
-
-            {/* User Payment Status */}
-            <Grid item xs={12} md={6}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Ihr Zahlungsstatus
-                </Typography>
-                
-                {userPaymentStatus ? (
-                  <Box>
-                    <Box display="flex" alignItems="center" gap={2} mb={2}>
-                      <Chip 
-                        label={getPaymentStatusLabel(userPaymentStatus.status)}
-                        color={getPaymentStatusColor(userPaymentStatus.status)}
-                        icon={userPaymentStatus.status === 'paid' ? <CheckIcon /> : <ScheduleIcon />}
-                      />
-                      <Typography variant="h6">
-                        €{userPaymentStatus.amount}
-                      </Typography>
-                    </Box>
-                    
-                    {userPaymentStatus.paidAt && (
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Bezahlt am: {new Date(userPaymentStatus.paidAt).toLocaleDateString('de-DE')}
-                      </Typography>
-                    )}
-                    
-                    {userPaymentStatus.paymentMethod && userPaymentStatus.status === 'paid' && (
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Zahlungsart: {userPaymentStatus.paymentMethod}
-                      </Typography>
-                    )}
-                    
-                    {userPaymentStatus.notes && (
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Notiz: {userPaymentStatus.notes}
-                      </Typography>
-                    )}
-
-                    {/* Action Buttons */}
-                    <Stack direction="row" spacing={2} sx={{ mt: 3 }}>
-                      {canReserve && (
-                        <Button
-                          variant="outlined"
-                          startIcon={<CheckIcon />}
-                          onClick={handleReserveSpot}
-                          disabled={actionLoading === 'reserving'}
-                        >
-                          {actionLoading === 'reserving' ? 'Reserviere...' : 'Platz reservieren'}
-                        </Button>
-                      )}
-                      
-                      {canPay && (
-                        <Button
-                          variant="contained"
-                          startIcon={<PaymentIcon />}
-                          onClick={() => setPaymentDialog(true)}
-                          disabled={actionLoading === 'paying'}
-                        >
-                          Als bezahlt markieren
-                        </Button>
-                      )}
-                      
-                      {canCancel && (
-                        <Button
-                          variant="outlined"
-                          color="error"
-                          startIcon={<CancelIcon />}
-                          onClick={() => setCancelDialog(true)}
-                          disabled={actionLoading === 'cancelling'}
-                        >
-                          Teilnahme stornieren
-                        </Button>
-                      )}
-                    </Stack>
-                  </Box>
-                ) : (
-                  <Alert severity="info">
-                    Sie sind nicht Teil dieser Buchung.
-                  </Alert>
+              <Box sx={{ p: 3 }}>
+                {/* Zahlungs-Tab */}
+                {activeTab === 0 && (
+                  <PaymentManager 
+                    bookingSessionId={bookingSession._id}
+                    isAdmin={isAdmin}
+                    onUpdate={loadBookingSession}
+                  />
                 )}
-              </Paper>
-            </Grid>
 
-            {/* Payment Status Table */}
-            <Grid item xs={12}>
-              <Paper sx={{ p: 3 }}>
-                <Typography variant="h6" gutterBottom>
-                  Zahlungsübersicht aller Teilnehmer
-                </Typography>
-                
-                <TableContainer>
-                  <Table>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Teilnehmer</TableCell>
-                        <TableCell>Betrag</TableCell>
-                        <TableCell>Status</TableCell>
-                        <TableCell>Bezahlt am</TableCell>
-                        <TableCell>Zahlungsart</TableCell>
-                        {isAdmin && <TableCell>Aktionen</TableCell>}
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {bookingSession.payments?.map((payment) => (
-                        <TableRow key={payment.user._id}>
-                          <TableCell>
-                            <Box display="flex" alignItems="center" gap={2}>
-                              <Avatar sx={{ width: 32, height: 32 }}>
-                                {payment.user.name?.[0] || '?'}
-                              </Avatar>
-                              <Box>
-                                <Typography variant="body2">
-                                  {payment.user.profile?.firstName && payment.user.profile?.lastName 
-                                    ? `${payment.user.profile.firstName} ${payment.user.profile.lastName}`
-                                    : payment.user.name
-                                  }
+                {/* Reisedetails-Tab */}
+                {activeTab === 1 && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Reisedetails
+                    </Typography>
+                    
+                    <Grid container spacing={3}>
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              <LocationIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                              Reiseziel
+                            </Typography>
+                            <Typography variant="body1" gutterBottom>
+                              {bookingSession.finalDetails?.destination || 'Nicht angegeben'}
+                            </Typography>
+                            {bookingSession.finalDetails?.hotelName && (
+                              <Typography variant="body2" color="text.secondary">
+                                Hotel: {bookingSession.finalDetails.hotelName}
+                              </Typography>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              <CalendarIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                              Reisezeitraum
+                            </Typography>
+                            <Typography variant="body1">
+                              {bookingSession.finalDetails?.departureDate && bookingSession.finalDetails?.returnDate ? (
+                                <>
+                                  <strong>Abreise:</strong> {new Date(bookingSession.finalDetails.departureDate).toLocaleDateString('de-DE')}<br />
+                                  <strong>Rückkehr:</strong> {new Date(bookingSession.finalDetails.returnDate).toLocaleDateString('de-DE')}
+                                </>
+                              ) : (
+                                'Noch nicht festgelegt'
+                              )}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              <EuroIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                              Kosten
+                            </Typography>
+                            <Typography variant="body1">
+                              <strong>Pro Person:</strong> €{bookingSession.finalDetails?.pricePerPerson || 0}<br />
+                              <strong>Gesamtkosten:</strong> €{bookingSession.finalDetails?.totalPrice || 0}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              <GroupIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                              Teilnehmer
+                            </Typography>
+                            <Typography variant="body1">
+                              <strong>Teilnehmer:</strong> {bookingSession.finalDetails?.totalParticipants || 0}<br />
+                              <strong>Bezahlt:</strong> {bookingSession.paidParticipants || 0}<br />
+                              <strong>Ausstehend:</strong> {(bookingSession.finalDetails?.totalParticipants || 0) - (bookingSession.paidParticipants || 0)}
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    </Grid>
+
+                    {/* Zahlungsfrist Information */}
+                    {bookingSession.paymentSettings?.paymentDeadline && (
+                      <Alert 
+                        severity={bookingSession.isPaymentOverdue ? 'error' : 'info'} 
+                        sx={{ mt: 3 }}
+                        icon={bookingSession.isPaymentOverdue ? <WarningIcon /> : <ScheduleIcon />}
+                      >
+                        <Typography variant="body2">
+                          <strong>Zahlungsfrist:</strong> {new Date(bookingSession.paymentSettings.paymentDeadline).toLocaleDateString('de-DE')}
+                          {bookingSession.daysUntilPaymentDeadline !== null && (
+                            bookingSession.daysUntilPaymentDeadline > 0 ? 
+                              ` (noch ${bookingSession.daysUntilPaymentDeadline} Tage)` :
+                              ` (${Math.abs(bookingSession.daysUntilPaymentDeadline)} Tage überfällig)`
+                          )}
+                        </Typography>
+                      </Alert>
+                    )}
+
+                    {/* Buchungsbestätigung falls vorhanden */}
+                    {bookingSession.finalBooking && (
+                      <Card sx={{ mt: 3 }}>
+                        <CardContent>
+                          <Typography variant="h6" gutterBottom color="success.main">
+                            <CheckIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                            Buchung bestätigt
+                          </Typography>
+                          <Typography variant="body1" gutterBottom>
+                            <strong>Buchungsreferenz:</strong> {bookingSession.finalBooking.bookingReference}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            Gebucht am: {new Date(bookingSession.finalBooking.bookedAt).toLocaleDateString('de-DE')}
+                          </Typography>
+                          {bookingSession.finalBooking.bookingConfirmation && (
+                            <Typography variant="body2" sx={{ mt: 1 }}>
+                              {bookingSession.finalBooking.bookingConfirmation}
+                            </Typography>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+                  </Box>
+                )}
+
+                {/* Admin-Verwaltungs-Tab */}
+                {activeTab === 2 && isAdmin && (
+                  <Box>
+                    <Typography variant="h6" gutterBottom>
+                      Administrator-Funktionen
+                    </Typography>
+                    
+                    <Grid container spacing={3}>
+                      {/* Buchungsstatus Management */}
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              Buchungsstatus
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" gutterBottom>
+                              Aktueller Status: <strong>{getStatusLabel(bookingSession.status)}</strong>
+                            </Typography>
+                            
+                            <Stack spacing={2} sx={{ mt: 2 }}>
+                              {bookingSession.status === 'collecting_payments' && (
+                                <Button
+                                  startIcon={<SendIcon />}
+                                  onClick={handleSendReminders}
+                                  disabled={actionLoading === 'sending'}
+                                  variant="outlined"
+                                  fullWidth
+                                >
+                                  {actionLoading === 'sending' ? 'Sende...' : 'Zahlungserinnerungen senden'}
+                                </Button>
+                              )}
+                              
+                              {canFinalize && (
+                                <Button
+                                  variant="contained"
+                                  startIcon={<FlightIcon />}
+                                  onClick={() => setFinalizeDialog(true)}
+                                  disabled={actionLoading === 'finalizing'}
+                                  fullWidth
+                                >
+                                  {actionLoading === 'finalizing' ? 'Finalisiere...' : 'Buchung abschließen'}
+                                </Button>
+                              )}
+                              
+                              {bookingSession.status === 'booked' && (
+                                <Button
+                                  variant="outlined"
+                                  startIcon={<DownloadIcon />}
+                                  onClick={() => {
+                                    // Download booking confirmation
+                                    alert('Buchungsbestätigung wird heruntergeladen...');
+                                  }}
+                                  fullWidth
+                                >
+                                  Buchungsbestätigung herunterladen
+                                </Button>
+                              )}
+                            </Stack>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+
+                      {/* Zahlungsstatistiken */}
+                      <Grid item xs={12} md={6}>
+                        <Card>
+                          <CardContent>
+                            <Typography variant="h6" gutterBottom>
+                              Zahlungsstatistiken
+                            </Typography>
+                            
+                            <Box sx={{ mt: 2 }}>
+                              <Box display="flex" justifyContent="space-between" mb={1}>
+                                <Typography variant="body2">Eingegangen:</Typography>
+                                <Typography variant="body2" fontWeight="bold" color="success.main">
+                                  €{bookingSession.totalCollected || 0}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {payment.user.email}
+                              </Box>
+                              
+                              <Box display="flex" justifyContent="space-between" mb={1}>
+                                <Typography variant="body2">Ausstehend:</Typography>
+                                <Typography variant="body2" fontWeight="bold" color="warning.main">
+                                  €{(bookingSession.finalDetails?.totalPrice || 0) - (bookingSession.totalCollected || 0)}
+                                </Typography>
+                              </Box>
+                              
+                              <Box display="flex" justifyContent="space-between" mb={1}>
+                                <Typography variant="body2">Teilnehmer bezahlt:</Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {bookingSession.paidParticipants || 0}/{bookingSession.finalDetails?.totalParticipants || 0}
+                                </Typography>
+                              </Box>
+                              
+                              <Box display="flex" justifyContent="space-between">
+                                <Typography variant="body2">Erfolgsrate:</Typography>
+                                <Typography variant="body2" fontWeight="bold" color="info.main">
+                                  {bookingSession.paymentProgress || 0}%
                                 </Typography>
                               </Box>
                             </Box>
-                          </TableCell>
-                          <TableCell>€{payment.amount}</TableCell>
-                          <TableCell>
-                            <Chip 
-                              label={getPaymentStatusLabel(payment.status)}
-                              color={getPaymentStatusColor(payment.status)}
-                              size="small"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            {payment.paidAt 
-                              ? new Date(payment.paidAt).toLocaleDateString('de-DE')
-                              : '-'
-                            }
-                          </TableCell>
-                          <TableCell>
-                            {payment.paymentMethod || '-'}
-                          </TableCell>
-                          {isAdmin && (
-                            <TableCell>
-                              {payment.status === 'pending' && (
+                          </CardContent>
+                        </Card>
+                      </Grid>
+
+                      {/* Automatisierung */}
+                      <Grid item xs={12}>
+                        <Accordion>
+                          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                            <Typography variant="h6">Erweiterte Funktionen</Typography>
+                          </AccordionSummary>
+                          <AccordionDetails>
+                            <Grid container spacing={2}>
+                              <Grid item xs={12} sm={6}>
                                 <Button
-                                  size="small"
+                                  variant="outlined"
+                                  fullWidth
                                   onClick={() => {
-                                    // Admin can mark others as paid
-                                    setPaymentData({
-                                      ...paymentData,
-                                      userId: payment.user._id
-                                    });
-                                    setPaymentDialog(true);
+                                    // Export payment data
+                                    alert('Zahlungsdaten werden exportiert...');
                                   }}
                                 >
-                                  Als bezahlt markieren
+                                  Zahlungsdaten exportieren
                                 </Button>
-                              )}
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Paper>
-            </Grid>
-
-            {/* Admin Actions */}
-            {isAdmin && (
-              <Grid item xs={12}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Administrator-Aktionen
-                  </Typography>
-                  
-                  <Stack direction="row" spacing={2}>
-                    {canFinalize && (
-                      <Button
-                        variant="contained"
-                        size="large"
-                        startIcon={<FlightIcon />}
-                        onClick={() => setFinalizeDialog(true)}
-                        disabled={actionLoading === 'finalizing'}
-                      >
-                        {actionLoading === 'finalizing' ? 'Finalisiere...' : 'Buchung abschließen'}
-                      </Button>
-                    )}
-                    
-                    {bookingSession.status === 'booked' && (
-                      <Button
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={() => {
-                          // Download booking confirmation
-                          alert('Buchungsbestätigung wird heruntergeladen...');
-                        }}
-                      >
-                        Buchungsbestätigung
-                      </Button>
-                    )}
-                  </Stack>
-                  
-                  {bookingSession.status === 'booked' && bookingSession.finalBooking && (
-                    <Alert severity="success" sx={{ mt: 2 }}>
-                      <Typography variant="subtitle2">
-                        Buchung erfolgreich abgeschlossen!
-                      </Typography>
-                      <Typography variant="body2">
-                        Buchungsreferenz: <strong>{bookingSession.finalBooking.bookingReference}</strong>
-                      </Typography>
-                      <Typography variant="body2">
-                        Gebucht am: {new Date(bookingSession.finalBooking.bookedAt).toLocaleDateString('de-DE')}
-                      </Typography>
-                    </Alert>
-                  )}
-                </Paper>
-              </Grid>
-            )}
-          </Grid>
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={6}>
+                                <Button
+                                  variant="outlined"
+                                  fullWidth
+                                  onClick={() => {
+                                    // Generate invoice
+                                    alert('Rechnung wird erstellt...');
+                                  }}
+                                >
+                                  Rechnung erstellen
+                                </Button>
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={6}>
+                                <Button
+                                  variant="outlined"
+                                  fullWidth
+                                  onClick={() => {
+                                    // Send booking confirmation
+                                    alert('Buchungsbestätigungen werden versendet...');
+                                  }}
+                                >
+                                  Bestätigungen versenden
+                                </Button>
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={6}>
+                                <Button
+                                  variant="outlined"
+                                  fullWidth
+                                  color="error"
+                                  onClick={() => {
+                                    if (window.confirm('Sind Sie sicher, dass Sie die Buchung stornieren möchten?')) {
+                                      alert('Stornierung wird verarbeitet...');
+                                    }
+                                  }}
+                                >
+                                  Buchung stornieren
+                                </Button>
+                              </Grid>
+                            </Grid>
+                          </AccordionDetails>
+                        </Accordion>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                )}
+              </Box>
+            </Paper>
+          </Box>
         )}
 
-        {/* Payment Dialog */}
-        <Dialog open={paymentDialog} onClose={() => setPaymentDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Zahlung bestätigen</DialogTitle>
-          <DialogContent>
-            <Typography variant="body1" gutterBottom>
-              Markieren Sie die Zahlung als eingegangen.
-            </Typography>
-            
-            <FormControl fullWidth sx={{ mt: 2, mb: 2 }}>
-              <InputLabel>Zahlungsart</InputLabel>
-              <Select
-                value={paymentData.paymentMethod}
-                onChange={(e) => setPaymentData({...paymentData, paymentMethod: e.target.value})}
-                label="Zahlungsart"
-              >
-                <MenuItem value="bank_transfer">Banküberweisung</MenuItem>
-                <MenuItem value="paypal">PayPal</MenuItem>
-                <MenuItem value="credit_card">Kreditkarte</MenuItem>
-                <MenuItem value="cash">Bargeld</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <TextField
-              fullWidth
-              label="Notizen (optional)"
-              multiline
-              rows={2}
-              value={paymentData.notes}
-              onChange={(e) => setPaymentData({...paymentData, notes: e.target.value})}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setPaymentDialog(false)}>Abbrechen</Button>
-            <Button onClick={handleMarkAsPaid} variant="contained">
-              Als bezahlt markieren
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Cancel Dialog */}
-        <Dialog open={cancelDialog} onClose={() => setCancelDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle>Teilnahme stornieren</DialogTitle>
-          <DialogContent>
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              <Typography variant="body1">
-                <strong>Achtung:</strong> Wenn Sie Ihre Teilnahme stornieren, können Sie nicht mehr an dieser Reise teilnehmen.
-              </Typography>
-            </Alert>
-            <Typography variant="body1">
-              Sind Sie sicher, dass Sie Ihre Teilnahme an dieser Gruppenreise stornieren möchten?
-            </Typography>
-            {userPaymentStatus?.status === 'paid' && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Ihre Zahlung wird entsprechend der Stornierungsbedingungen behandelt.
-              </Typography>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setCancelDialog(false)}>Abbrechen</Button>
-            <Button 
-              onClick={handleCancelParticipation} 
-              color="error" 
-              variant="contained"
-              disabled={actionLoading === 'cancelling'}
-            >
-              {actionLoading === 'cancelling' ? 'Storniere...' : 'Teilnahme stornieren'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Finalize Dialog */}
+        {/* Finalize Booking Dialog */}
         <Dialog open={finalizeDialog} onClose={() => setFinalizeDialog(false)} maxWidth="md" fullWidth>
           <DialogTitle>Buchung abschließen</DialogTitle>
           <DialogContent>
-            <Alert severity="info" sx={{ mb: 3 }}>
+            <Alert severity="success" sx={{ mb: 3 }}>
               <Typography variant="body1">
-                Alle Zahlungen sind eingegangen. Sie können die Buchung jetzt abschließen.
+                🎉 Alle Zahlungen sind eingegangen! Sie können die Buchung jetzt abschließen.
               </Typography>
             </Alert>
             
@@ -824,24 +691,24 @@ const BookingOverview = () => {
             <Grid container spacing={2} sx={{ mb: 3 }}>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Reiseziel:</Typography>
-                <Typography variant="body1">{bookingSession?.finalDetails.destination}</Typography>
+                <Typography variant="body1">{bookingSession?.finalDetails?.destination}</Typography>
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Hotel:</Typography>
-                <Typography variant="body1">{bookingSession?.finalDetails.hotelName || 'Nicht angegeben'}</Typography>
+                <Typography variant="body1">{bookingSession?.finalDetails?.hotelName || 'Nicht angegeben'}</Typography>
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Teilnehmer:</Typography>
-                <Typography variant="body1">{bookingSession?.finalDetails.totalParticipants}</Typography>
+                <Typography variant="body1">{bookingSession?.finalDetails?.totalParticipants}</Typography>
               </Grid>
               <Grid item xs={6}>
                 <Typography variant="body2" color="text.secondary">Gesamtpreis:</Typography>
-                <Typography variant="body1">€{bookingSession?.finalDetails.totalPrice}</Typography>
+                <Typography variant="body1">€{bookingSession?.finalDetails?.totalPrice}</Typography>
               </Grid>
               <Grid item xs={12}>
                 <Typography variant="body2" color="text.secondary">Reisezeitraum:</Typography>
                 <Typography variant="body1">
-                  {bookingSession?.finalDetails.departureDate && bookingSession?.finalDetails.returnDate
+                  {bookingSession?.finalDetails?.departureDate && bookingSession?.finalDetails?.returnDate
                     ? `${new Date(bookingSession.finalDetails.departureDate).toLocaleDateString('de-DE')} - ${new Date(bookingSession.finalDetails.returnDate).toLocaleDateString('de-DE')}`
                     : 'Nicht angegeben'
                   }
