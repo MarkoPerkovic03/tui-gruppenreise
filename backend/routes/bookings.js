@@ -292,6 +292,68 @@ router.get('/group/:groupId', auth, async (req, res) => {
     res.status(500).json({ message: 'Fehler beim Laden der Buchungsdaten' });
   }
 });
+// @route   GET /api/bookings/session/:sessionId
+// @desc    Get booking session by session ID
+// @access  Private (Group members only)
+router.get('/session/:sessionId', auth, async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    console.log('📋 Lade Booking Session:', sessionId);
+    
+    // Force model loading
+    const BookingSessionModel = mongoose.models.BookingSession || mongoose.model('BookingSession');
+    
+    // Lade die Booking Session
+    const bookingSession = await BookingSessionModel.findById(sessionId)
+      .populate('group', 'name members status')
+      .populate({
+        path: 'winningProposal',
+        populate: {
+          path: 'destination',
+          select: 'name country city'
+        }
+      })
+      .populate('payments.user', 'name email profile.firstName profile.lastName profile.profileImage')
+      .populate('finalBooking.bookedBy', 'name email');
+    
+    if (!bookingSession) {
+      return res.status(404).json({ 
+        message: 'Buchungssession nicht gefunden' 
+      });
+    }
+    
+    // Prüfe ob User Mitglied der Gruppe ist
+    const isMember = bookingSession.group.members.some(member => 
+      member.user.toString() === req.user.id.toString()
+    );
+    
+    if (!isMember) {
+      return res.status(403).json({ 
+        message: 'Nicht berechtigt, diese Buchung anzusehen' 
+      });
+    }
+    
+    console.log('✅ Buchungssession geladen:', bookingSession._id);
+    
+    // Finde User Payment Status
+    const userPaymentStatus = bookingSession.payments.find(payment => 
+      payment.user._id.toString() === req.user.id.toString()
+    );
+    
+    res.json({
+      bookingSession,
+      userPaymentStatus: userPaymentStatus || null
+    });
+    
+  } catch (error) {
+    console.error('❌ Fehler beim Laden der Booking Session:', error);
+    res.status(500).json({ 
+      message: 'Fehler beim Laden der Buchungsdaten',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
 // @route   POST /api/bookings/:sessionId/reserve
 // @desc    Mark user's spot as reserved
 // @access  Private (Group members)

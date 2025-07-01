@@ -49,7 +49,7 @@ import {
 import { useAuth } from '../App';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../utils/api';
-import PaymentManager from './PaymentManager'; // Import der neuen PaymentManager Komponente
+import SimplePaymentManager from './SimplePaymentManager'; // Import der vereinfachten Zahlungskomponente
 
 const BookingOverview = () => {
   const { id: groupId } = useParams();
@@ -367,9 +367,9 @@ const BookingOverview = () => {
 
               <Box sx={{ p: 3 }}>
                 {/* Zahlungs-Tab */}
-                {activeTab === 0 && (
-                  <PaymentManager 
-                    bookingSessionId={bookingSession._id}
+               {activeTab === 0 && (
+                  <SimplePaymentManager
+                    bookingSession={bookingSession}
                     isAdmin={isAdmin}
                     onUpdate={loadBookingSession}
                   />
