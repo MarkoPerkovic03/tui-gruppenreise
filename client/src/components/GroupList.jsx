@@ -16,6 +16,8 @@ import AddIcon from '@mui/icons-material/Add';
 import GroupIcon from '@mui/icons-material/Group';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import FlightIcon from '@mui/icons-material/Flight';
+import BookingIcon from '@mui/icons-material/BookOnline';
 import { useNavigate } from 'react-router-dom';
 
 const GroupList = () => {
@@ -85,8 +87,15 @@ const GroupList = () => {
     }
     
     // KORRIGIERT: Verwende /groups/:id Route
-    navigate(`/groups/${groupId}`);
-  };
+     navigate(`/groups/${groupId}`);
+};
+
+  const nextGroup = React.useMemo(() => {
+    const upcoming = groups
+      .filter(g => ['decided', 'booking', 'booked'].includes(g.status) && g.winningProposal?.departureDate)
+      .sort((a, b) => new Date(a.winningProposal.departureDate) - new Date(b.winningProposal.departureDate));
+    return upcoming[0];
+  }, [groups]);
 
   if (loading) {
     return (
@@ -128,6 +137,30 @@ const GroupList = () => {
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
+        )}
+         {nextGroup && (
+          <Card sx={{ mb: 3, backgroundColor: 'rgba(0,87,184,0.05)' }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" p={2}>
+              <Box>
+                <Typography variant="subtitle2" color="text.secondary">
+                  Nächste Reise
+                </Typography>
+                <Typography variant="h6">
+                  {nextGroup.winningProposal?.destination?.name || nextGroup.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {new Date(nextGroup.winningProposal.departureDate).toLocaleDateString('de-DE')} · {nextGroup.status === 'booked' ? 'gebucht' : 'Bezahlung offen'}
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<BookingIcon />}
+                onClick={() => navigate(`/groups/${nextGroup._id || nextGroup.id}/booking`)}
+              >
+                Zur Buchung
+              </Button>
+            </Box>
+          </Card>
         )}
 
         <Grid container spacing={3}>
@@ -221,11 +254,20 @@ const GroupList = () => {
                       {/* Status Chip */}
                       {group.status && (
                         <Chip 
-                          label={group.status} 
+                          label={group.status}
                           color={group.status === 'planning' ? 'warning' : 'success'}
                           size="small"
-                          sx={{ mb: 2 }}
+                          sx={{ mb: 1 }}
                         />
+                      )}
+
+                      {/* Upcoming trip info */}
+                      {group.winningProposal && (
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                          Nächste Reise: {group.winningProposal.destination?.name || 'Unbekannt'}
+                          {group.winningProposal.departureDate &&
+                            ` ab ${new Date(group.winningProposal.departureDate).toLocaleDateString('de-DE')}`}
+                        </Typography>
                       )}
                     </Box>
                     

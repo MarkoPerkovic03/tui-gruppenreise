@@ -40,7 +40,8 @@ import {
   MoreVert as MoreVertIcon,
   PersonRemove as PersonRemoveIcon,
   Warning as WarningIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  BookOnline as BookingIcon
 } from '@mui/icons-material';
 import api from '../utils/api';
 import ProposalManager from './ProposalManager';
@@ -496,17 +497,29 @@ const GroupDetail = () => {
                 {/* Aktionen */}
                 <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
                   <Stack direction="row" spacing={2}>
-                    {!isAdmin ? (
-                      <Button 
-                        variant="outlined" 
+                    {['decided', 'booking', 'booked'].includes(group.status) && (
+                      <Button
+                        variant="contained"
+                        startIcon={<BookingIcon />}
+                        onClick={() => navigate(`/groups/${id}/booking`)}
+                      >
+                        Zur Buchung
+                      </Button>
+                    )}
+
+                    {!isAdmin && (
+                      <Button
+                        variant="outlined"
                         color="error"
                         onClick={handleLeaveGroup}
                       >
                         Gruppe verlassen
                       </Button>
-                    ) : (
-                      <Button 
-                        variant="outlined" 
+                    )}
+
+                    {isAdmin && (
+                      <Button
+                        variant="outlined"
                         color="error"
                         startIcon={<DeleteIcon />}
                         onClick={() => setDeleteGroupOpen(true)}

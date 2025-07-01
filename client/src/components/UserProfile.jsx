@@ -83,6 +83,7 @@ const UserProfile = () => {
     loadProfile();
     loadStats();
     loadRecommendations();
+    loadUpcomingGroups();
   }, []);
 
   const loadProfile = async () => {
@@ -584,6 +585,11 @@ const UserProfile = () => {
                           `${new Date(group.winningProposal?.departureDate).toLocaleDateString('de-DE')} · ` +
                           `${group.winningProposal?.destination?.name || ''}`
                         }
+                      />
+                       <Chip
+                        label={group.status === 'booked' ? 'gebucht' : 'Bezahlung offen'}
+                        color={group.status === 'booked' ? 'success' : 'warning'}
+                        size="small"
                       />
                     </ListItem>
                   ))}
