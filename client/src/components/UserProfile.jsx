@@ -34,7 +34,9 @@ import {
   Slider,
   FormGroup,
   FormControlLabel,
-  Switch
+  Switch,
+  Tooltip,
+  Badge
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -53,13 +55,20 @@ import {
   CalendarToday as CalendarIcon,
   Group as GroupIcon,
   Poll as PollIcon,
-  CheckCircle as CheckIcon
+  CheckCircle as CheckIcon,
+  BookOnline as BookingIcon,
+  Payment as PaymentIcon,
+  Schedule as ScheduleIcon,
+  Notifications as NotificationsIcon,
+  NotificationImportant as UrgentIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/api';
 
 const UserProfile = () => {
   const { user: authUser } = useAuth();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [stats, setStats] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
@@ -116,7 +125,8 @@ const UserProfile = () => {
       console.error('Fehler beim Laden der Empfehlungen:', error);
     }
   };
-   const loadUpcomingGroups = async () => {
+
+  const loadUpcomingGroups = async () => {
     try {
       const response = await api.get('/groups');
       const upcoming = response.data
@@ -134,6 +144,60 @@ const UserProfile = () => {
       console.error('Fehler beim Laden der kommenden Reisen:', error);
     }
   };
+
+  // ERWEITERT: Hilfsfunktionen für Buchungsstatus
+  const getBookingStatusInfo = (group) => {
+    switch (group.status) {
+      case 'decided':
+        return {
+          label: 'Bezahlung offen',
+          color: 'warning',
+          icon: <PaymentIcon />,
+          actionLabel: 'Jetzt buchen!',
+          urgent: true,
+          description: 'Zahlung erforderlich'
+        };
+      case 'booking':
+        return {
+          label: 'Buchung läuft',
+          color: 'info',
+          icon: <ScheduleIcon />,
+          actionLabel: 'Zur Buchung',
+          urgent: false,
+          description: 'Buchung in Bearbeitung'
+        };
+      case 'booked':
+        return {
+          label: 'Gebucht',
+          color: 'success',
+          icon: <CheckIcon />,
+          actionLabel: 'Buchung verwalten',
+          urgent: false,
+          description: 'Erfolgreich gebucht'
+        };
+      default:
+        return {
+          label: 'Unbekannt',
+          color: 'default',
+          icon: <GroupIcon />,
+          actionLabel: 'Öffnen',
+          urgent: false,
+          description: ''
+        };
+    }
+  };
+
+  const getDaysUntilDeparture = (departureDate) => {
+    const today = new Date();
+    const departure = new Date(departureDate);
+    const diffTime = departure - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // ERWEITERT: Berechne wichtige Statistiken
+  const urgentBookings = upcomingGroups.filter(g => g.status === 'decided').length;
+  const nextTrip = upcomingGroups[0];
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -290,6 +354,43 @@ const UserProfile = () => {
         </Alert>
       )}
 
+      {/* ERWEITERT: Urgent Buchungs-Alert */}
+      {urgentBookings > 0 && (
+        <Alert 
+          severity="warning" 
+          sx={{ 
+            mb: 3,
+            border: '2px solid #FF6B35',
+            '& .MuiAlert-icon': {
+              fontSize: '2rem'
+            }
+          }}
+          icon={<UrgentIcon />}
+          action={
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<BookingIcon />}
+              onClick={() => navigate('/groups')}
+              sx={{
+                background: 'linear-gradient(45deg, #FF6B35, #F7931E)',
+                color: 'white',
+                ml: 2
+              }}
+            >
+              Alle Buchungen
+            </Button>
+          }
+        >
+          <Typography variant="h6" gutterBottom>
+            ⚡ {urgentBookings} {urgentBookings === 1 ? 'Buchung benötigt' : 'Buchungen benötigen'} Ihre Aufmerksamkeit!
+          </Typography>
+          <Typography variant="body2">
+            Sie haben offene Zahlungen für Ihre Gruppenreisen. Buchen Sie jetzt, um Ihren Platz zu sichern.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Profil-Header */}
       <Paper sx={{ p: 3, mb: 3 }}>
         <Grid container spacing={3} alignItems="center">
@@ -347,16 +448,146 @@ const UserProfile = () => {
             )}
           </Grid>
           <Grid item>
-            <Button
-              variant="outlined"
-              startIcon={<LockIcon />}
-              onClick={() => setPasswordDialog(true)}
-            >
-              Passwort ändern
-            </Button>
+            <Stack direction="row" spacing={2}>
+              {urgentBookings > 0 && (
+                <Tooltip title={`${urgentBookings} offene Buchung${urgentBookings !== 1 ? 'en' : ''}`}>
+                  <Button
+                    variant="contained"
+                    startIcon={
+                      <Badge badgeContent={urgentBookings} color="error">
+                        <BookingIcon />
+                      </Badge>
+                    }
+                    onClick={() => navigate('/groups')}
+                    sx={{
+                      background: 'linear-gradient(45deg, #FF6B35, #F7931E)',
+                      animation: 'pulse 2s infinite',
+                      '@keyframes pulse': {
+                        '0%': {
+                          boxShadow: '0 4px 12px rgba(255, 107, 53, 0.4)'
+                        },
+                        '50%': {
+                          boxShadow: '0 6px 20px rgba(255, 107, 53, 0.6)'
+                        },
+                        '100%': {
+                          boxShadow: '0 4px 12px rgba(255, 107, 53, 0.4)'
+                        }
+                      }
+                    }}
+                  >
+                    Buchungen
+                  </Button>
+                </Tooltip>
+              )}
+              <Button
+                variant="outlined"
+                startIcon={<LockIcon />}
+                onClick={() => setPasswordDialog(true)}
+              >
+                Passwort ändern
+              </Button>
+            </Stack>
           </Grid>
         </Grid>
       </Paper>
+
+      {/* ERWEITERT: Nächste Reise Highlight */}
+      {nextTrip && (
+        <Card sx={{ 
+          mb: 3, 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          color: 'white'
+        }}>
+          <CardContent>
+            <Typography variant="overline" sx={{ opacity: 0.8, fontWeight: 'bold' }}>
+              🚀 Nächste Reise
+            </Typography>
+            <Grid container spacing={3} alignItems="center">
+              <Grid item xs={12} md={8}>
+                <Typography variant="h5" sx={{ mb: 1, fontWeight: 'bold' }}>
+                  {nextTrip.winningProposal?.destination?.name || nextTrip.name}
+                </Typography>
+                
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <CalendarIcon fontSize="small" />
+                    <Typography variant="body1">
+                      {new Date(nextTrip.winningProposal.departureDate).toLocaleDateString('de-DE')}
+                    </Typography>
+                  </Box>
+                  
+                  {(() => {
+                    const daysUntil = getDaysUntilDeparture(nextTrip.winningProposal.departureDate);
+                    if (daysUntil > 0) {
+                      return (
+                        <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                          {daysUntil === 1 ? 'Morgen!' : 
+                           daysUntil <= 7 ? `${daysUntil} Tage` :
+                           `${daysUntil} Tage`}
+                        </Typography>
+                      );
+                    }
+                    return null;
+                  })()}
+                  
+                  {nextTrip.winningProposal.pricePerPerson && (
+                    <Typography variant="body1">
+                      €{nextTrip.winningProposal.pricePerPerson} p.P.
+                    </Typography>
+                  )}
+                </Box>
+
+                {(() => {
+                  const statusInfo = getBookingStatusInfo(nextTrip);
+                  return (
+                    <Chip
+                      icon={statusInfo.icon}
+                      label={statusInfo.label}
+                      sx={{
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontWeight: 'bold',
+                        '& .MuiChip-icon': { color: 'white' }
+                      }}
+                    />
+                  );
+                })()}
+              </Grid>
+              
+              <Grid item xs={12} md={4}>
+                <Box sx={{ textAlign: { xs: 'left', md: 'right' } }}>
+                  {(() => {
+                    const statusInfo = getBookingStatusInfo(nextTrip);
+                    return (
+                      <Button
+                        variant="contained"
+                        size="large"
+                        startIcon={<BookingIcon />}
+                        onClick={() => navigate(`/groups/${nextTrip._id || nextTrip.id}/booking`)}
+                        sx={{
+                          backgroundColor: 'white',
+                          color: 'primary.main',
+                          fontWeight: 'bold',
+                          fontSize: '1.1rem',
+                          py: 1.5,
+                          px: 3,
+                          width: { xs: '100%', md: 'auto' },
+                          '&:hover': {
+                            backgroundColor: 'rgba(255,255,255,0.9)',
+                            transform: 'translateY(-2px)'
+                          }
+                        }}
+                      >
+                        {statusInfo.actionLabel}
+                      </Button>
+                    );
+                  })()}
+                </Box>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <Paper sx={{ mb: 3 }}>
@@ -564,48 +795,164 @@ const UserProfile = () => {
           </Grid>
           
           <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>Mitgliedschaft</Typography>
-              <Typography>
-                Mitglied seit: {stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('de-DE') : '—'}
-              </Typography>
-              <Typography>
-                Letzte Aktivität: {stats.lastActive ? new Date(stats.lastActive).toLocaleDateString('de-DE') : '—'}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {upcomingGroups.length > 0 && (
-          <Grid item xs={12}>
             <Card>
               <CardContent>
-                <Typography variant="h6" gutterBottom>Kommende Reisen</Typography>
-                <List>
-                  {upcomingGroups.map(group => (
-                    <ListItem key={group._id} disableGutters>
-                      <ListItemIcon><FlightIcon /></ListItemIcon>
-                      <ListItemText
-                        primary={group.name}
-                        secondary={
-                          `${new Date(group.winningProposal?.departureDate).toLocaleDateString('de-DE')} · ` +
-                          `${group.winningProposal?.destination?.name || ''}`
-                        }
-                      />
-                       <Chip
-                        label={group.status === 'booked' ? 'gebucht' : 'Bezahlung offen'}
-                        color={group.status === 'booked' ? 'success' : 'warning'}
-                        size="small"
-                      />
-                    </ListItem>
-                  ))}
-                </List>
+                <Typography variant="h6" gutterBottom>Mitgliedschaft</Typography>
+                <Typography>
+                  Mitglied seit: {stats.memberSince ? new Date(stats.memberSince).toLocaleDateString('de-DE') : '—'}
+                </Typography>
+                <Typography>
+                  Letzte Aktivität: {stats.lastActive ? new Date(stats.lastActive).toLocaleDateString('de-DE') : '—'}
+                </Typography>
               </CardContent>
             </Card>
           </Grid>
-        )}
-      </Grid>
+
+          {/* ERWEITERT: Kommende Reisen mit direkten Buchungslinks */}
+          {upcomingGroups.length > 0 && (
+            <Grid item xs={12}>
+              <Card>
+                <CardContent>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                    <Typography variant="h6">
+                      Kommende Reisen ({upcomingGroups.length})
+                    </Typography>
+                    {urgentBookings > 0 && (
+                      <Chip
+                        icon={<UrgentIcon />}
+                        label={`${urgentBookings} ${urgentBookings === 1 ? 'Buchung offen' : 'Buchungen offen'}`}
+                        color="warning"
+                        variant="outlined"
+                      />
+                    )}
+                  </Box>
+                  
+                  <Grid container spacing={2}>
+                    {upcomingGroups.map(group => {
+                      const statusInfo = getBookingStatusInfo(group);
+                      const daysUntil = getDaysUntilDeparture(group.winningProposal?.departureDate);
+                      
+                      return (
+                        <Grid item xs={12} key={group._id}>
+                          <Card 
+                            variant="outlined" 
+                            sx={{ 
+                              p: 2,
+                              border: statusInfo.urgent ? '2px solid #FF6B35' : '1px solid',
+                              borderColor: statusInfo.urgent ? '#FF6B35' : 'divider',
+                              '&:hover': {
+                                boxShadow: 2,
+                                transform: 'translateY(-2px)'
+                              },
+                              transition: 'all 0.3s ease'
+                            }}
+                          >
+                            <Grid container spacing={2} alignItems="center">
+                              <Grid item xs={12} sm={6} md={4}>
+                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                                  <FlightIcon color="primary" />
+                                  <Typography variant="h6" fontWeight="bold">
+                                    {group.name}
+                                  </Typography>
+                                  {statusInfo.urgent && (
+                                    <Tooltip title="Dringende Aktion erforderlich">
+                                      <UrgentIcon color="warning" fontSize="small" />
+                                    </Tooltip>
+                                  )}
+                                </Box>
+                                <Typography variant="body2" color="text.secondary">
+                                  {group.winningProposal?.destination?.name || 'Unbekannt'}
+                                </Typography>
+                              </Grid>
+                              
+                              <Grid item xs={12} sm={6} md={3}>
+                                <Box>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Abreise
+                                  </Typography>
+                                  <Typography variant="body1" fontWeight="bold">
+                                    {new Date(group.winningProposal?.departureDate).toLocaleDateString('de-DE')}
+                                  </Typography>
+                                  {daysUntil > 0 && (
+                                    <Typography variant="caption" color={daysUntil <= 7 ? 'error.main' : 'text.secondary'}>
+                                      {daysUntil === 1 ? 'Morgen!' : 
+                                       daysUntil <= 7 ? `In ${daysUntil} Tagen` :
+                                       `In ${daysUntil} Tagen`}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Grid>
+                              
+                              <Grid item xs={6} sm={3} md={2}>
+                                <Box>
+                                  <Typography variant="body2" color="text.secondary">
+                                    Preis p.P.
+                                  </Typography>
+                                  <Typography variant="body1" fontWeight="bold">
+                                    €{group.winningProposal?.pricePerPerson || '—'}
+                                  </Typography>
+                                </Box>
+                              </Grid>
+                              
+                              <Grid item xs={6} sm={3} md={2}>
+                                <Box sx={{ textAlign: 'center' }}>
+                                  <Chip
+                                    icon={statusInfo.icon}
+                                    label={statusInfo.label}
+                                    color={statusInfo.color}
+                                    size="small"
+                                    sx={{ mb: 1, width: '100%' }}
+                                  />
+                                </Box>
+                              </Grid>
+                              
+                              <Grid item xs={12} md={1}>
+                                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                                  <Tooltip title={statusInfo.description}>
+                                    <Button
+                                      variant={statusInfo.urgent ? "contained" : "outlined"}
+                                      size="small"
+                                      startIcon={<BookingIcon />}
+                                      onClick={() => navigate(`/groups/${group._id || group.id}/booking`)}
+                                      sx={{
+                                        minWidth: 'auto',
+                                        ...(statusInfo.urgent && {
+                                          background: 'linear-gradient(45deg, #FF6B35, #F7931E)',
+                                          color: 'white',
+                                          '&:hover': {
+                                            background: 'linear-gradient(45deg, #E55A2B, #E8851E)'
+                                          }
+                                        })
+                                      }}
+                                    >
+                                      {statusInfo.urgent ? 'Buchen!' : 'Buchung'}
+                                    </Button>
+                                  </Tooltip>
+                                </Box>
+                              </Grid>
+                            </Grid>
+                          </Card>
+                        </Grid>
+                      );
+                    })}
+                  </Grid>
+
+                  {/* Schnellzugriff für alle Buchungen */}
+                  <Box sx={{ mt: 3, textAlign: 'center' }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<BookingIcon />}
+                      onClick={() => navigate('/groups')}
+                      size="large"
+                    >
+                      Alle Buchungen verwalten
+                    </Button>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
       )}
 
       {activeTab === 3 && (
@@ -705,9 +1052,72 @@ const UserProfile = () => {
                 label="Erinnerungen"
                 disabled
               />
+              <FormControlLabel
+                control={<Switch checked={profile.profile?.notifications?.bookingAlerts || false} />}
+                label="Buchungsbenachrichtigungen"
+                disabled
+              />
+            </FormGroup>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Typography variant="h6" gutterBottom>
+              Buchungseinstellungen
+            </Typography>
+            <FormGroup>
+              <FormControlLabel
+                control={<Switch checked={true} />}
+                label="Zahlungserinnerungen aktiviert"
+                disabled
+              />
+              <FormControlLabel
+                control={<Switch checked={true} />}
+                label="Buchungsbestätigungen per E-Mail"
+                disabled
+              />
+              <FormControlLabel
+                control={<Switch checked={false} />}
+                label="Automatische Buchungen (für Admins)"
+                disabled
+              />
             </FormGroup>
           </CardContent>
         </Card>
+      )}
+
+      {/* ERWEITERT: Floating Action Button für dringende Buchungen */}
+      {urgentBookings > 0 && (
+        <Fab
+          color="warning"
+          sx={{ 
+            position: 'fixed', 
+            bottom: 24, 
+            right: 24,
+            background: 'linear-gradient(45deg, #FF6B35, #F7931E)',
+            color: 'white',
+            animation: 'bounce 2s infinite',
+            '@keyframes bounce': {
+              '0%, 20%, 50%, 80%, 100%': {
+                transform: 'translateY(0)'
+              },
+              '40%': {
+                transform: 'translateY(-10px)'
+              },
+              '60%': {
+                transform: 'translateY(-5px)'
+              }
+            },
+            '&:hover': {
+              background: 'linear-gradient(45deg, #E55A2B, #E8851E)',
+              transform: 'scale(1.1)'
+            }
+          }}
+          onClick={() => navigate('/groups')}
+        >
+          <Badge badgeContent={urgentBookings} color="error">
+            <BookingIcon />
+          </Badge>
+        </Fab>
       )}
 
       {/* Edit Dialogs */}

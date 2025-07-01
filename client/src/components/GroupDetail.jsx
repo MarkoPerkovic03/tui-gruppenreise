@@ -27,7 +27,12 @@ import {
   Select,
   MenuItem,
   Menu,
-  ListItemIcon
+  ListItemIcon,
+  Card,
+  CardContent,
+  Grid,
+  Tooltip,
+  Badge
 } from '@mui/material';
 import {
   Delete as DeleteIcon,
@@ -41,7 +46,13 @@ import {
   PersonRemove as PersonRemoveIcon,
   Warning as WarningIcon,
   AdminPanelSettings as AdminIcon,
-  BookOnline as BookingIcon
+  BookOnline as BookingIcon,
+  Payment as PaymentIcon,
+  CheckCircle as CheckIcon,
+  Schedule as ScheduleIcon,
+  CalendarToday as CalendarIcon,
+  Euro as EuroIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import api from '../utils/api';
 import ProposalManager from './ProposalManager';
@@ -74,6 +85,44 @@ const GroupDetail = () => {
   const availablePreferences = [
     'all_inclusive', 'beach', 'city', 'adventure', 'culture', 'wellness', 'family', 'party'
   ];
+
+  // Hilfsfunktion für Buchungsstatus
+  const getBookingStatusInfo = (status) => {
+    switch (status) {
+      case 'decided':
+        return {
+          label: 'Bereit zur Buchung',
+          color: 'warning',
+          icon: <PaymentIcon />,
+          actionLabel: 'Jetzt buchen!',
+          description: 'Die Gruppe hat sich entschieden - jetzt kann gebucht werden!',
+          buttonColor: 'linear-gradient(45deg, #FF6B35, #F7931E)',
+          urgent: true
+        };
+      case 'booking':
+        return {
+          label: 'Buchung läuft',
+          color: 'info',
+          icon: <ScheduleIcon />,
+          actionLabel: 'Zur Buchung',
+          description: 'Die Buchung ist bereits in Bearbeitung',
+          buttonColor: '#2196F3',
+          urgent: false
+        };
+      case 'booked':
+        return {
+          label: 'Gebucht',
+          color: 'success',
+          icon: <CheckIcon />,
+          actionLabel: 'Buchung verwalten',
+          description: 'Die Reise ist erfolgreich gebucht!',
+          buttonColor: '#4CAF50',
+          urgent: false
+        };
+      default:
+        return null;
+    }
+  };
 
   // SOFORTIGE KORREKTUR: Validiere und korrigiere ungültige IDs
   useEffect(() => {
@@ -341,6 +390,8 @@ const GroupDetail = () => {
   };
 
   const availableTabs = getAvailableTabs();
+  const bookingStatus = getBookingStatusInfo(group.status);
+  const hasBookingAccess = ['decided', 'booking', 'booked'].includes(group.status);
 
   return (
     <>
@@ -357,33 +408,79 @@ const GroupDetail = () => {
           <Typography variant="h4" sx={{ mb: 2, color: 'white' }}>
             {group.name}
           </Typography>
-          <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+          <Typography variant="subtitle1" sx={{ color: 'rgba(255, 255, 255, 0.8)', mb: 3 }}>
             {group.description}
           </Typography>
           
-          {/* Status Badge im Header */}
-          <Box sx={{ mt: 2 }}>
+          {/* Status und Buchungsbutton im Header */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
             <Chip 
               label={
                 group.status === 'planning' ? 'Planungsphase' : 
                 group.status === 'voting' ? 'Abstimmungsphase' :
-                group.status === 'decided' ? 'Entschieden' : 'Unbekannt'
+                group.status === 'decided' ? 'Entschieden' : 
+                group.status === 'booking' ? 'Buchung läuft' :
+                group.status === 'booked' ? 'Gebucht' : 'Unbekannt'
               }
               color={
                 group.status === 'planning' ? 'primary' : 
                 group.status === 'voting' ? 'warning' :
-                group.status === 'decided' ? 'success' : 'default'
+                group.status === 'decided' ? 'success' : 
+                group.status === 'booking' ? 'info' :
+                group.status === 'booked' ? 'success' : 'default'
               }
               icon={
                 group.status === 'voting' ? <PollIcon /> :
-                group.status === 'decided' ? <FlightTakeoffIcon /> : undefined
+                group.status === 'decided' ? <FlightTakeoffIcon /> :
+                bookingStatus?.icon || undefined
               }
               sx={{ 
                 backgroundColor: 'rgba(255, 255, 255, 0.2)',
                 color: 'white',
-                '& .MuiChip-icon': { color: 'white' }
+                '& .MuiChip-icon': { color: 'white' },
+                fontSize: '1rem',
+                height: 40
               }}
             />
+
+            {/* ERWEITERT: Prominenter Buchungsbutton im Header */}
+            {hasBookingAccess && bookingStatus && (
+              <Tooltip title={bookingStatus.description}>
+                <Button
+                  variant="contained"
+                  size="large"
+                  startIcon={<BookingIcon />}
+                  onClick={() => navigate(`/groups/${id}/booking`)}
+                  sx={{
+                    background: bookingStatus.buttonColor,
+                    color: 'white',
+                    fontWeight: 'bold',
+                    fontSize: '1.1rem',
+                    py: 1.5,
+                    px: 3,
+                    boxShadow: bookingStatus.urgent ? '0 4px 12px rgba(255, 107, 53, 0.4)' : undefined,
+                    animation: bookingStatus.urgent ? 'pulse 2s infinite' : undefined,
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 6px 16px rgba(0,0,0,0.3)'
+                    },
+                    '@keyframes pulse': {
+                      '0%': {
+                        boxShadow: '0 4px 12px rgba(255, 107, 53, 0.4)'
+                      },
+                      '50%': {
+                        boxShadow: '0 6px 20px rgba(255, 107, 53, 0.6)'
+                      },
+                      '100%': {
+                        boxShadow: '0 4px 12px rgba(255, 107, 53, 0.4)'
+                      }
+                    }
+                  }}
+                >
+                  {bookingStatus.actionLabel}
+                </Button>
+              </Tooltip>
+            )}
           </Box>
         </Box>
       </Box>
@@ -393,6 +490,49 @@ const GroupDetail = () => {
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
             {error}
+          </Alert>
+        )}
+
+        {/* ERWEITERT: Buchungs-Alert für bessere Sichtbarkeit */}
+        {hasBookingAccess && bookingStatus && (
+          <Alert 
+            severity={bookingStatus.color} 
+            sx={{ 
+              mb: 3,
+              border: bookingStatus.urgent ? '2px solid #FF6B35' : undefined,
+              '& .MuiAlert-icon': {
+                fontSize: '2rem'
+              }
+            }}
+            icon={bookingStatus.icon}
+            action={
+              <Button
+                variant="contained"
+                size="small"
+                startIcon={<BookingIcon />}
+                onClick={() => navigate(`/groups/${id}/booking`)}
+                sx={{
+                  background: bookingStatus.buttonColor,
+                  color: 'white',
+                  ml: 2
+                }}
+              >
+                {bookingStatus.actionLabel}
+              </Button>
+            }
+          >
+            <Typography variant="h6" gutterBottom>
+              {bookingStatus.description}
+            </Typography>
+            {group.winningProposal && (
+              <Typography variant="body2">
+                <strong>Reiseziel:</strong> {group.winningProposal.destination?.name || 'Unbekannt'} | 
+                <strong> Abreise:</strong> {group.winningProposal.departureDate ? 
+                  new Date(group.winningProposal.departureDate).toLocaleDateString('de-DE') : 
+                  'Nicht festgelegt'} |
+                <strong> Teilnehmer:</strong> {group.members?.length || 0}
+              </Typography>
+            )}
           </Alert>
         )}
 
@@ -415,6 +555,79 @@ const GroupDetail = () => {
             {/* Übersicht Tab */}
             {activeTab === 0 && (
               <Stack spacing={3}>
+                {/* ERWEITERT: Buchungsübersicht Card wenn verfügbar */}
+                {hasBookingAccess && group.winningProposal && (
+                  <Card 
+                    sx={{ 
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      mb: 3
+                    }}
+                  >
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <FlightTakeoffIcon />
+                        Ihre gebuchte Reise
+                      </Typography>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={12} md={8}>
+                          <Typography variant="h5" gutterBottom>
+                            {group.winningProposal.destination?.name || 'Unbekannt'}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', mb: 2 }}>
+                            {group.winningProposal.departureDate && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <CalendarIcon fontSize="small" />
+                                <Typography>
+                                  {new Date(group.winningProposal.departureDate).toLocaleDateString('de-DE')}
+                                </Typography>
+                              </Box>
+                            )}
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                              <PeopleIcon fontSize="small" />
+                              <Typography>{group.members?.length || 0} Teilnehmer</Typography>
+                            </Box>
+                            {group.winningProposal.pricePerPerson && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                <EuroIcon fontSize="small" />
+                                <Typography>{group.winningProposal.pricePerPerson}€ p.P.</Typography>
+                              </Box>
+                            )}
+                          </Box>
+                          <Chip
+                            icon={bookingStatus.icon}
+                            label={bookingStatus.label}
+                            sx={{
+                              backgroundColor: 'rgba(255,255,255,0.2)',
+                              color: 'white',
+                              '& .MuiChip-icon': { color: 'white' }
+                            }}
+                          />
+                        </Grid>
+                        <Grid item xs={12} md={4}>
+                          <Button
+                            variant="contained"
+                            size="large"
+                            fullWidth
+                            startIcon={<BookingIcon />}
+                            onClick={() => navigate(`/groups/${id}/booking`)}
+                            sx={{
+                              backgroundColor: 'white',
+                              color: 'primary.main',
+                              fontWeight: 'bold',
+                              '&:hover': {
+                                backgroundColor: 'rgba(255,255,255,0.9)'
+                              }
+                            }}
+                          >
+                            {bookingStatus.actionLabel}
+                          </Button>
+                        </Grid>
+                      </Grid>
+                    </CardContent>
+                  </Card>
+                )}
+
                 <Typography variant="h6">Gruppendetails</Typography>
                 
                 {/* Reisezeitraum */}
@@ -497,13 +710,19 @@ const GroupDetail = () => {
                 {/* Aktionen */}
                 <Box sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
                   <Stack direction="row" spacing={2}>
-                    {['decided', 'booking', 'booked'].includes(group.status) && (
+                    {hasBookingAccess && (
                       <Button
                         variant="contained"
                         startIcon={<BookingIcon />}
                         onClick={() => navigate(`/groups/${id}/booking`)}
+                        sx={{
+                          background: bookingStatus.buttonColor,
+                          '&:hover': {
+                            opacity: 0.9
+                          }
+                        }}
                       >
-                        Zur Buchung
+                        {bookingStatus.actionLabel}
                       </Button>
                     )}
 
