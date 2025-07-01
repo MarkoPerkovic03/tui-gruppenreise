@@ -29,7 +29,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Routen
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/users', require('./routes/auth')); // ← Für /users Endpunkt (verwendet auth.js)
+app.use('/api/users', require('./routes/users'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/groups', require('./routes/groups'));
 app.use('/api/destinations', require('./routes/destinations'));

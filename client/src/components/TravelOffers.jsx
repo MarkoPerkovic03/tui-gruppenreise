@@ -26,6 +26,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Snackbar,
   IconButton
 } from '@mui/material';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
@@ -55,7 +56,12 @@ const TravelOffers = () => {
     country: '',
     tags: []
   });
-  
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [userGroups, setUserGroups] = useState([]);
+  const [selectedGroup, setSelectedGroup] = useState('');
+  const [offerToPropose, setOfferToPropose] = useState(null);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -173,16 +179,35 @@ const TravelOffers = () => {
     setSearchTerm('');
   };
 
-  const handleAddToGroup = async (offer) => {
+   const handleAddToGroup = async (offer) => {
     try {
-      console.log('Füge zur Gruppe hinzu:', offer);
-      alert(`"${offer.title}" wurde zur Gruppe hinzugefügt!`);
+      setOfferToPropose(offer);
+      setSelectedGroup('');
+      const response = await api.get('/groups?status=planning');
+      setUserGroups((response.data || []).filter(g => g.status === 'planning'));
+      setGroupDialogOpen(true);
     } catch (error) {
-      console.error('Fehler beim Hinzufügen zur Gruppe:', error);
-      alert('Fehler beim Hinzufügen zur Gruppe');
+      console.error('Fehler beim Laden der Gruppen:', error);
+      alert('Fehler beim Laden der Gruppen');
     }
   };
 
+  const submitProposal = async () => {
+    if (!selectedGroup || !offerToPropose) return;
+    try {
+      await api.post(`/groups/${selectedGroup}/proposals`, {
+        travelOfferId: offerToPropose._id || offerToPropose.id,
+        departureDate: offerToPropose.availabilityPeriods?.[0]?.from || new Date(),
+        returnDate: offerToPropose.availabilityPeriods?.[0]?.to || new Date(),
+        description: offerToPropose.description
+      });
+      setGroupDialogOpen(false);
+      setSnackbarOpen(true);
+    } catch (error) {
+      console.error('Fehler beim Einreichen des Vorschlags:', error);
+      alert('Fehler beim Einreichen des Vorschlags');
+    }
+  };
   const LoadingSkeleton = () => (
     <Grid item xs={12} sm={6} md={4}>
       <Card>
@@ -613,11 +638,52 @@ const TravelOffers = () => {
         )}
       </Grid>
 
-      {/* Detail Dialog */}
-      <OfferDetailDialog 
+       {/* Detail Dialog */}
+      <OfferDetailDialog
         offer={selectedOffer}
         open={!!selectedOffer}
         onClose={() => setSelectedOffer(null)}
+      />
+
+      <Dialog open={groupDialogOpen} onClose={() => setGroupDialogOpen(false)}>
+        <DialogTitle>Zur Gruppe hinzufügen</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            Es werden nur Gruppen angezeigt, die sich aktuell in der Planungsphase befinden und Reisevorschläge zulassen.
+          </Typography>
+          {userGroups.length > 0 ? (
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel id="group-select-label">Gruppe auswählen</InputLabel>
+              <Select
+                labelId="group-select-label"
+                value={selectedGroup}
+                label="Gruppe auswählen"
+                onChange={(e) => setSelectedGroup(e.target.value)}
+              >
+                {userGroups.map(g => (
+                  <MenuItem key={g._id || g.id} value={g._id || g.id}>
+                    {g.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : (
+            <Typography variant="body2" sx={{ mt: 2 }}>
+              Sie haben momentan keine Gruppen in der Planungsphase.
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setGroupDialogOpen(false)}>Abbrechen</Button>
+          <Button variant="contained" onClick={submitProposal} disabled={!selectedGroup}>Vorschlag einreichen</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message="Vorschlag eingereicht!"
       />
     </Container>
   );

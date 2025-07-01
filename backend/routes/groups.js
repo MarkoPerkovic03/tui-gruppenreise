@@ -2,13 +2,21 @@ const express = require('express');
 const router = express.Router();
 const Group = require('../models/Group');
 const auth = require('../middleware/auth');
+const Proposal = require('../models/Proposal');
+const TravelOffer = require('../models/TravelOffer');
+const Destination = require('../models/Destination');
 
 // Alle Gruppen des Users abrufen
 router.get('/', auth, async (req, res) => {
   try {
     console.log('🔍 Lade Gruppen für User:', req.user.id);
     
-    const groups = await Group.find({ 'members.user': req.user.id })
+    const query = { 'members.user': req.user.id };
+    if (req.query.status) {
+      query.status = req.query.status;
+    }
+
+    const groups = await Group.find(query)
       .populate('creator', 'name email')
       .populate('members.user', 'name email')
       .populate({
@@ -242,6 +250,102 @@ router.post('/:id/members', auth, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+// Reiseangebot als Vorschlag einreichen
+router.post('/:id/proposals', auth, async (req, res) => {
+  try {
+    const groupId = req.params.id;
+    const { travelOfferId, departureDate, returnDate, description } = req.body;
+
+    console.log('🆕 Reisevorschlag für Gruppe', groupId, 'aus TravelOffer', travelOfferId);
+
+    if (!travelOfferId || !departureDate || !returnDate) {
+      return res.status(400).json({
+        message: 'travelOfferId, departureDate und returnDate sind erforderlich'
+      });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Gruppe nicht gefunden' });
+    }
+
+    const isMember = group.members.some(m => m.user.toString() === req.user.id.toString());
+    if (!isMember) {
+      return res.status(403).json({ message: 'Nur Gruppenmitglieder können Vorschläge erstellen' });
+    }
+
+    if (group.status !== 'planning') {
+      return res.status(400).json({ message: 'Für diese Gruppe können keine Vorschläge mehr eingereicht werden' });
+    }
+
+    const travelOffer = await TravelOffer.findById(travelOfferId);
+    if (!travelOffer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+
+    let destination = await Destination.findOne({
+      name: travelOffer.destination,
+      country: travelOffer.country
+    });
+
+    if (!destination) {
+      destination = await Destination.create({
+        name: travelOffer.destination,
+        country: travelOffer.country,
+        city: travelOffer.city || '',
+        description: travelOffer.description || '',
+        images: travelOffer.images?.map(img => img.url || img) || [],
+        avgPricePerPerson: travelOffer.pricePerPerson,
+        tags: travelOffer.tags || []
+      });
+    }
+
+    let mealPlan = 'breakfast';
+    if (travelOffer.amenities) {
+      if (travelOffer.amenities.includes('All-Inclusive')) {
+        mealPlan = 'all_inclusive';
+      } else if (travelOffer.amenities.includes('Vollpension')) {
+        mealPlan = 'full_board';
+      } else if (travelOffer.amenities.includes('Halbpension')) {
+        mealPlan = 'half_board';
+      } else if (travelOffer.amenities.includes('Nur Frühstück')) {
+        mealPlan = 'breakfast';
+      }
+    }
+
+    const proposal = new Proposal({
+      group: groupId,
+      destination: destination._id,
+      proposedBy: req.user.id,
+      originalTravelOffer: travelOfferId,
+      hotelName: travelOffer.title,
+      hotelUrl: travelOffer.hotelUrl || '',
+      pricePerPerson: travelOffer.pricePerPerson,
+      totalPrice: travelOffer.pricePerPerson * group.maxParticipants,
+      mealPlan,
+      departureDate: new Date(departureDate),
+      returnDate: new Date(returnDate),
+      description: description || `${travelOffer.title} - ${travelOffer.destination}`,
+      includesFlight: true,
+      includesTransfer: true,
+      voteDistribution: { 1: 0, 2: 0, 3: 0 },
+      voteCount: 0,
+      weightedScore: 0
+    });
+
+    const saved = await proposal.save();
+
+    const populated = await Proposal.findById(saved._id)
+      .populate('destination', 'name country city')
+      .populate('proposedBy', 'name email');
+
+    res.status(201).json(populated);
+  } catch (error) {
+    console.error('❌ Fehler beim Einreichen des Reisevorschlags:', error);
+    res.status(500).json({ message: 'Server-Fehler beim Einreichen des Vorschlags' });
+  }
+});
+
 
 // NEU: Mitglied aus Gruppe entfernen (nur für Admins)
 router.delete('/:id/members/:userId', auth, async (req, res) => {
