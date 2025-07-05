@@ -250,6 +250,90 @@ router.post('/:id/members', auth, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// NEU: Admin-Rolle ändern (Beförderung/Degradierung)
+router.put('/:id/members/:userId/role', auth, async (req, res) => {
+  try {
+    const { id: groupId, userId } = req.params;
+    const { role } = req.body;
+
+    console.log(`🔄 Ändere Rolle für User ${userId} in Gruppe ${groupId} zu: ${role}`);
+
+    // Validierung
+    if (!['admin', 'member'].includes(role)) {
+      return res.status(400).json({ message: 'Ungültige Rolle. Erlaubt: admin, member' });
+    }
+
+    const group = await Group.findById(groupId);
+    if (!group) {
+      return res.status(404).json({ message: 'Gruppe nicht gefunden' });
+    }
+
+    // Prüfe ob aktueller User Admin ist
+    const currentUserMember = group.members.find(member => 
+      member.user.toString() === req.user.id.toString()
+    );
+
+    if (!currentUserMember || currentUserMember.role !== 'admin') {
+      return res.status(403).json({ message: 'Nur Gruppen-Admins können Rollen ändern' });
+    }
+
+    // Finde das zu ändernde Mitglied
+    const targetMember = group.members.find(member => 
+      member.user.toString() === userId.toString()
+    );
+
+    if (!targetMember) {
+      return res.status(404).json({ message: 'Mitglied nicht in der Gruppe gefunden' });
+    }
+
+    // Verhindere, dass der Gruppenersteller seine Admin-Rechte verliert
+    if (userId.toString() === group.creator.toString() && role === 'member') {
+      return res.status(400).json({ 
+        message: 'Der Gruppenersteller kann seine Admin-Rechte nicht verlieren' 
+      });
+    }
+
+    // Prüfe, dass mindestens ein Admin übrig bleibt
+    if (role === 'member') {
+      const remainingAdmins = group.members.filter(member => 
+        member.role === 'admin' && member.user.toString() !== userId.toString()
+      );
+
+      if (remainingAdmins.length === 0) {
+        return res.status(400).json({ 
+          message: 'Die Gruppe muss mindestens einen Admin haben' 
+        });
+      }
+    }
+
+    // Ändere die Rolle
+    targetMember.role = role;
+    await group.save();
+
+    // Lade aktualisierte Gruppe
+    const updatedGroup = await Group.findById(group._id)
+      .populate('creator', 'name email')
+      .populate('members.user', 'name email profile.firstName profile.lastName');
+
+    console.log(`✅ Rolle geändert: User ${userId} ist jetzt ${role}`);
+
+    res.json({
+      message: `Rolle erfolgreich zu ${role} geändert`,
+      group: updatedGroup,
+      changedMember: {
+        userId: userId,
+        newRole: role,
+        name: targetMember.user?.name
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Fehler beim Ändern der Rolle:', error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Reiseangebot als Vorschlag einreichen
 router.post('/:id/proposals', auth, async (req, res) => {
   try {
@@ -345,7 +429,6 @@ router.post('/:id/proposals', auth, async (req, res) => {
     res.status(500).json({ message: 'Server-Fehler beim Einreichen des Vorschlags' });
   }
 });
-
 
 // NEU: Mitglied aus Gruppe entfernen (nur für Admins)
 router.delete('/:id/members/:userId', auth, async (req, res) => {

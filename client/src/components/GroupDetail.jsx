@@ -1,4 +1,4 @@
-// client/src/components/GroupDetail.jsx - ERWEITERT mit InviteLinkManager und neuen Admin-Funktionen
+// client/src/components/GroupDetail.jsx - ERWEITERT mit InviteLinkManager und Admin-Beförderung
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -52,7 +52,8 @@ import {
   Schedule as ScheduleIcon,
   CalendarToday as CalendarIcon,
   Euro as EuroIcon,
-  People as PeopleIcon
+  People as PeopleIcon,
+  Person as PersonIcon
 } from '@mui/icons-material';
 import api from '../utils/api';
 import ProposalManager from './ProposalManager';
@@ -77,6 +78,9 @@ const GroupDetail = () => {
   const [deleteGroupOpen, setDeleteGroupOpen] = useState(false);
   const [removeMemberOpen, setRemoveMemberOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  
+  // NEU: Admin-Beförderungs-Dialog
+  const [promoteAdminOpen, setPromoteAdminOpen] = useState(false);
   
   // Menu State
   const [memberMenuAnchor, setMemberMenuAnchor] = useState(null);
@@ -258,7 +262,7 @@ const GroupDetail = () => {
     }
   };
 
-  // NEU: Mitglied entfernen
+  // Mitglied entfernen
   const handleRemoveMember = async () => {
     if (!selectedMember) return;
 
@@ -273,7 +277,38 @@ const GroupDetail = () => {
     }
   };
 
-  // NEU: Gruppe löschen
+  // NEU: Admin-Beförderung/Degradierung
+  const handlePromoteToAdmin = async () => {
+    if (!selectedMember) return;
+
+    try {
+      const newRole = selectedMember.role === 'admin' ? 'member' : 'admin';
+      const memberName = selectedMember.user?.name || selectedMember.user?.email || 'Mitglied';
+      
+      console.log(`🔄 Ändere Rolle von ${memberName} zu ${newRole}`);
+
+      await api.put(`/groups/${id}/members/${selectedMember.user._id}/role`, {
+        role: newRole
+      });
+
+      // Gruppe neu laden
+      await handleGroupUpdate();
+      
+      // Dialog schließen
+      setPromoteAdminOpen(false);
+      setSelectedMember(null);
+      
+      // Erfolg anzeigen (optional)
+      console.log(`✅ ${memberName} wurde erfolgreich zum ${newRole === 'admin' ? 'Admin' : 'Mitglied'} gemacht`);
+      
+    } catch (error) {
+      console.error('❌ Fehler beim Ändern der Rolle:', error);
+      setError(error.response?.data?.message || 'Fehler beim Ändern der Rolle');
+      setPromoteAdminOpen(false);
+    }
+  };
+
+  // Gruppe löschen
   const handleDeleteGroup = async () => {
     try {
       await api.delete(`/groups/${id}`);
@@ -295,7 +330,7 @@ const GroupDetail = () => {
     }
   };
 
-  // NEU: Menü-Handler für Mitgliederverwaltung
+  // Menü-Handler für Mitgliederverwaltung
   const handleMemberMenuOpen = (event, member) => {
     setMemberMenuAnchor(event.currentTarget);
     setSelectedMember(member);
@@ -791,28 +826,59 @@ const GroupDetail = () => {
                     const memberUser = member.user;
                     const displayName = memberUser?.name || memberUser?.email || `Mitglied ${index + 1}`;
                     const displayEmail = memberUser?.email || 'Keine E-Mail';
+                    const isGroupCreator = (memberUser?._id || memberUser?.id) === (group.creator?._id || group.creator);
                     
                     return (
                       <ListItem key={index} divider>
                         <ListItemText
-                          primary={displayName}
+                          primary={
+                            <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+                              <Typography variant="body1">
+                                {displayName}
+                              </Typography>
+                              
+                              {isGroupCreator && (
+                                <Chip 
+                                  label="Ersteller" 
+                                  size="small" 
+                                  color="primary"
+                                  variant="filled"
+                                />
+                              )}
+                              
+                              {member.role === 'admin' && (
+                                <Chip 
+                                  label="Administrator" 
+                                  size="small" 
+                                  color="warning"
+                                  icon={<AdminIcon />}
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          }
                           secondary={
                             <Box>
                               <Typography component="span" variant="body2">
                                 {displayEmail}
                               </Typography>
                               <br />
-                              <Chip 
-                                label={member.role === 'admin' ? 'Administrator' : 'Mitglied'} 
-                                size="small"
-                                color={member.role === 'admin' ? 'primary' : 'default'}
-                                variant="outlined"
-                              />
+                              <Typography variant="caption" color="text.secondary">
+                                Beigetreten: {new Date(member.joinedAt || Date.now()).toLocaleDateString('de-DE')}
+                              </Typography>
+                              {member.role === 'member' && (
+                                <>
+                                  <br />
+                                  <Typography variant="caption" color="text.secondary">
+                                    Status: Normales Mitglied
+                                  </Typography>
+                                </>
+                              )}
                             </Box>
                           }
                         />
-                        {/* NEU: Admin-Aktionen für Mitglieder */}
-                        {isAdmin && member.role !== 'admin' && (
+                        {/* Admin-Aktionen für Mitglieder */}
+                        {isAdmin && !isGroupCreator && (
                           <ListItemSecondaryAction>
                             <IconButton
                               edge="end"
@@ -841,21 +907,49 @@ const GroupDetail = () => {
         </Paper>
       </Box>
 
-      {/* NEU: Mitglieder-Aktionen Menü */}
+      {/* ERWEITERT: Mitglieder-Aktionen Menü mit Admin-Beförderung */}
       <Menu
         anchorEl={memberMenuAnchor}
         open={Boolean(memberMenuAnchor)}
         onClose={handleMemberMenuClose}
       >
+        {/* Bestehende Option: Mitglied entfernen */}
         <MenuItem onClick={() => {
-          handleMemberMenuClose(); // Menü schließen, aber selectedMember beibehalten
-          setRemoveMemberOpen(true); // Dialog öffnen
+          handleMemberMenuClose();
+          setRemoveMemberOpen(true);
         }}>
           <ListItemIcon>
             <PersonRemoveIcon fontSize="small" />
           </ListItemIcon>
           Mitglied entfernen
         </MenuItem>
+
+        {/* NEU: Zu Admin machen (nur für normale Mitglieder) */}
+        {selectedMember?.role === 'member' && (
+          <MenuItem onClick={() => {
+            handleMemberMenuClose();
+            setPromoteAdminOpen(true);
+          }}>
+            <ListItemIcon>
+              <AdminIcon fontSize="small" color="warning" />
+            </ListItemIcon>
+            Zu Admin machen
+          </MenuItem>
+        )}
+
+        {/* NEU: Admin-Rechte entziehen (nur für Admins, aber nicht für Ersteller) */}
+        {selectedMember?.role === 'admin' && 
+         (selectedMember?.user?._id || selectedMember?.user?.id) !== (group.creator?._id || group.creator) && (
+          <MenuItem onClick={() => {
+            handleMemberMenuClose();
+            setPromoteAdminOpen(true);
+          }}>
+            <ListItemIcon>
+              <PersonIcon fontSize="small" color="action" />
+            </ListItemIcon>
+            Admin-Rechte entziehen
+          </MenuItem>
+        )}
       </Menu>
 
       {/* Dialog: Präferenz hinzufügen */}
@@ -936,10 +1030,10 @@ const GroupDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* NEU: Dialog: Mitglied entfernen */}
+      {/* Dialog: Mitglied entfernen */}
       <Dialog open={removeMemberOpen} onClose={() => {
         setRemoveMemberOpen(false);
-        setSelectedMember(null); // Hier wird selectedMember zurückgesetzt
+        setSelectedMember(null);
       }}>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>
@@ -972,7 +1066,75 @@ const GroupDetail = () => {
         </DialogActions>
       </Dialog>
 
-      {/* NEU: Dialog: Gruppe löschen */}
+      {/* NEU: Dialog für Admin-Beförderung/Degradierung */}
+      <Dialog open={promoteAdminOpen} onClose={() => {
+        setPromoteAdminOpen(false);
+        setSelectedMember(null);
+      }}>
+        <DialogTitle>
+          <Box display="flex" alignItems="center" gap={1}>
+            <AdminIcon color="warning" />
+            {selectedMember?.role === 'admin' ? 'Admin-Rechte entziehen' : 'Zu Admin machen'}
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            {selectedMember?.role === 'admin' ? (
+              <>
+                Möchten Sie <strong>{selectedMember?.user?.name || selectedMember?.user?.email}</strong> die 
+                Admin-Rechte entziehen?
+              </>
+            ) : (
+              <>
+                Möchten Sie <strong>{selectedMember?.user?.name || selectedMember?.user?.email}</strong> zum 
+                Administrator dieser Gruppe machen?
+              </>
+            )}
+          </Typography>
+          
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            {selectedMember?.role === 'admin' ? (
+              <>
+                <strong>Als normales Mitglied kann diese Person:</strong><br/>
+                • Reisevorschläge einreichen und abstimmen<br/>
+                • An Gruppendiskussionen teilnehmen<br/>
+                <br/>
+                <strong>Verliert diese Berechtigungen:</strong><br/>
+                • Neue Mitglieder einladen<br/>
+                • Gruppeneinstellungen bearbeiten<br/>
+                • Andere Mitglieder verwalten
+              </>
+            ) : (
+              <>
+                <strong>Als Admin kann diese Person:</strong><br/>
+                • Neue Mitglieder einladen und entfernen<br/>
+                • Gruppeneinstellungen bearbeiten<br/>
+                • Reisevorschläge verwalten<br/>
+                • Abstimmungen starten und beenden<br/>
+                • Andere Mitglieder zu Admins machen
+              </>
+            )}
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            setPromoteAdminOpen(false);
+            setSelectedMember(null);
+          }}>
+            Abbrechen
+          </Button>
+          <Button 
+            onClick={handlePromoteToAdmin}
+            variant="contained"
+            color={selectedMember?.role === 'admin' ? 'warning' : 'primary'}
+            startIcon={selectedMember?.role === 'admin' ? <PersonIcon /> : <AdminIcon />}
+          >
+            {selectedMember?.role === 'admin' ? 'Rechte entziehen' : 'Zu Admin machen'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog: Gruppe löschen */}
       <Dialog open={deleteGroupOpen} onClose={() => setDeleteGroupOpen(false)}>
         <DialogTitle>
           <Box display="flex" alignItems="center" gap={1}>

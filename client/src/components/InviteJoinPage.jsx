@@ -531,4 +531,4 @@ const InviteJoinPage = () => {
   );
 };
 
-export default InviteJoinPage;
+export default InviteJoinPage;  
