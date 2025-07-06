@@ -25,6 +25,7 @@ import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import AddIcon from '@mui/icons-material/Add';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { TAGS } from '../constants/tags';
 import deLocale from 'date-fns/locale/de';
 
 const CreateGroup = () => {
@@ -49,16 +50,8 @@ const CreateGroup = () => {
 
   const steps = ['Gruppendetails', 'Präferenzen', 'Mitglieder einladen'];
 
-  const travelTypes = [
-    'beach',
-    'city',
-    'adventure', 
-    'culture',
-    'wellness',
-    'family',
-    'party',
-    'all_inclusive'
-  ];
+  // Verwende die einheitlichen TAGS aus der Konstante
+  const travelTypes = TAGS;
 
   const activities = [
     'Sightseeing',
@@ -208,7 +201,7 @@ const CreateGroup = () => {
               <Stack spacing={3}>
                 <TextField
                   fullWidth
-                  label="Gruppenname *"
+                  label="Gruppenname"
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
                   placeholder="z.B. Mallorca 2025"
@@ -228,7 +221,7 @@ const CreateGroup = () => {
                 <TextField
                   type="number"
                   fullWidth
-                  label="Maximale Teilnehmeranzahl *"
+                  label="Maximale Teilnehmeranzahl"
                   value={maxParticipants}
                   onChange={(e) => setMaxParticipants(Math.max(2, Math.min(50, parseInt(e.target.value) || 2)))}
                   inputProps={{ min: 2, max: 50 }}

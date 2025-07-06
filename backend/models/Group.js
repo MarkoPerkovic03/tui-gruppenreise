@@ -56,7 +56,7 @@ const groupSchema = new mongoose.Schema({
   }],
   preferences: [{
     type: String,
-    enum: ['all_inclusive', 'beach', 'city', 'adventure', 'culture', 'wellness', 'family', 'party']
+    enum: ['All-Inclusive', 'Strand', 'Stadt', 'Berge', 'Kultur', 'Abenteuer', 'Entspannung', 'Wellness', 'Party', 'Familie', 'Romantik', 'Luxus', 'Günstig']
   }],
   status: {
     type: String,

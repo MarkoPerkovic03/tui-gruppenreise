@@ -306,7 +306,21 @@ const ProposalManager = ({ groupId, group, onGroupUpdate }) => {
   const handleVote = async (proposalId, rank) => {
     try {
       await api.post(`/proposals/${proposalId}/vote`, { rank });
-      await loadProposals();
+      // Nur das betroffene Proposal im State aktualisieren
+      setProposals(prevProposals =>
+        prevProposals.map(proposal =>
+          proposal._id === proposalId
+            ? {
+                ...proposal,
+                votes: [
+                  ...proposal.votes.filter(v => v.user?._id !== user?.id),
+                  { user: { _id: user?.id, name: user?.name }, rank }
+                ],
+                voteCount: (proposal.voteCount || 0) + 1
+              }
+            : proposal
+        )
+      );
       setError('');
     } catch (error) {
       console.error('Fehler beim Abstimmen:', error);

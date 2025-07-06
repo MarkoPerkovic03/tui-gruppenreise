@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { TAGS } from '../constants/tags';
 import {
   Box,
   Typography,
@@ -58,7 +59,6 @@ const AdminTravelOffers = () => {
   });
 
   const categories = ['Hotel', 'Apartment', 'Resort', 'Hostel', 'Ferienwohnung', 'Pension', 'Villa'];
-  const tagsList = ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family', 'romantic', 'luxury', 'budget'];
 
   const [newImage, setNewImage] = useState('');
 
@@ -317,7 +317,7 @@ const AdminTravelOffers = () => {
                     ))}
                   </Box>
                 )}>
-                  {tagsList.map(tag => (
+                  {TAGS.map(tag => (
                     <MenuItem key={tag} value={tag}>{tag}</MenuItem>
                   ))}
                 </Select>

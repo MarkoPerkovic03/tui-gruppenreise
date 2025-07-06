@@ -102,7 +102,7 @@ const travelOfferSchema = new mongoose.Schema({
   }],
   tags: [{
     type: String,
-    enum: ['beach', 'city', 'mountains', 'culture', 'adventure', 'relaxation', 'party', 'family', 'romantic', 'luxury', 'budget']
+    enum: ['All-Inclusive', 'Strand', 'Stadt', 'Berge', 'Kultur', 'Abenteuer', 'Entspannung', 'Wellness', 'Party', 'Familie', 'Romantik', 'Luxus', 'Günstig']
   }],
   cancellationPolicy: {
     type: String,
