@@ -271,13 +271,13 @@ const AdminTravelOffers = () => {
           )}
           <Grid container spacing={2} sx={{ mt: 1 }}>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Titel *" value={formData.title} onChange={(e) => handleInputChange('title', e.target.value)} required />
+              <TextField fullWidth label="Titel" value={formData.title} onChange={(e) => handleInputChange('title', e.target.value)} required />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Destination *" value={formData.destination} onChange={(e) => handleInputChange('destination', e.target.value)} required />
+              <TextField fullWidth label="Destination" value={formData.destination} onChange={(e) => handleInputChange('destination', e.target.value)} required />
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Land *" value={formData.country} onChange={(e) => handleInputChange('country', e.target.value)} required />
+              <TextField fullWidth label="Land" value={formData.country} onChange={(e) => handleInputChange('country', e.target.value)} required />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth label="Stadt" value={formData.city} onChange={(e) => handleInputChange('city', e.target.value)} />
@@ -293,7 +293,7 @@ const AdminTravelOffers = () => {
               </FormControl>
             </Grid>
             <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Preis pro Person (€) *" type="number" value={formData.pricePerPerson} onChange={(e) => handleInputChange('pricePerPerson', e.target.value)} required />
+              <TextField fullWidth label="Preis pro Person (€)" type="number" value={formData.pricePerPerson} onChange={(e) => handleInputChange('pricePerPerson', e.target.value)} required />
             </Grid>
             <Grid item xs={12} sm={6}>
               <TextField fullWidth label="Min. Personen" type="number" value={formData.minPersons} onChange={(e) => handleInputChange('minPersons', e.target.value)} />
@@ -305,7 +305,7 @@ const AdminTravelOffers = () => {
               <TextField fullWidth label="Sterne" type="number" value={formData.stars} onChange={(e) => handleInputChange('stars', e.target.value)} inputProps={{ min: 1, max: 5 }} />
             </Grid>
             <Grid item xs={12}>
-              <TextField fullWidth label="Beschreibung *" multiline rows={3} value={formData.description} onChange={(e) => handleInputChange('description', e.target.value)} required />
+              <TextField fullWidth label="Beschreibung" multiline rows={3} value={formData.description} onChange={(e) => handleInputChange('description', e.target.value)} required />
             </Grid>
             <Grid item xs={12}>
               <FormControl fullWidth>
