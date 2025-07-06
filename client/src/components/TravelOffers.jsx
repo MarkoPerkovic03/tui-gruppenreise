@@ -38,7 +38,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
 import PeopleIcon from '@mui/icons-material/People';
 import ImageIcon from '@mui/icons-material/Image';
-import api from '../utils/api';
+import api from '../services/api';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
 

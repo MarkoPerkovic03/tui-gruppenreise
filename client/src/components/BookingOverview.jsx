@@ -48,7 +48,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../App';
 import { useNavigate, useParams } from 'react-router-dom';
-import api from '../utils/api';
+import api from '../services/api';
 import SimplePaymentManager from './SimplePaymentManager'; // Import der vereinfachten Zahlungskomponente
 
 const BookingOverview = () => {

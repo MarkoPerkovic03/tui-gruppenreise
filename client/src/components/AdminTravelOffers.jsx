@@ -34,7 +34,7 @@ import {
   Euro as EuroIcon,
   Hotel as HotelIcon
 } from '@mui/icons-material';
-import api from '../utils/api';
+import api from '../services/api';
 
 const AdminTravelOffers = () => {
   const [offers, setOffers] = useState([]);

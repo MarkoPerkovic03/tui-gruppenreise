@@ -50,7 +50,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../App';
 import { useNavigate } from 'react-router-dom';
-import api from '../utils/api';
+import api from '../services/api';
 
 const VotingResults = ({ groupId, group }) => {
   const { user } = useAuth();

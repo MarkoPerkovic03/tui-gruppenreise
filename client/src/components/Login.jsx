@@ -14,7 +14,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import api from '../utils/api';
+import api from '../services/api';
 import { useAuth } from '../App';
 
 const Login = () => {

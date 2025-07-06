@@ -43,7 +43,7 @@ import {
   Refresh as RefreshIcon,
   QrCode as QrCodeIcon
 } from '@mui/icons-material';
-import api from '../utils/api';
+import api from '../services/api';
 
 const InviteLinkManager = ({ groupId, group, onUpdate }) => {
   const [inviteData, setInviteData] = useState(null);

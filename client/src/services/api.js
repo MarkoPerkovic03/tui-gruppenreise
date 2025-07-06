@@ -1,227 +1,350 @@
-// client/src/services/api.js - Für MongoDB Backend
+ // client/src/services/api.js - KOMBINIERTE VERSION mit Axios
+import axios from 'axios';
 
-class ApiService {
-  constructor() {
-    // Verwende relative URLs - Vite Proxy leitet an MongoDB Backend weiter
-    this.baseURL = '';
-  }
-
-  async request(endpoint, options = {}) {
-    const url = `${this.baseURL}${endpoint}`;
-    
-    const config = {
+// Basis-URL für die API
+const api = axios.create({
+  baseURL: '/api',
+  withCredentials: false,
       headers: {
         'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    };
+    'Accept': 'application/json'
+  }
+});
 
-    // Token hinzufügen falls vorhanden
+// Request-Interceptor: Token aus localStorage hinzufügen
+api.interceptors.request.use(
+  (config) => {
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // Debug-Logging für alle Requests
+    console.log(`📡 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      headers: config.headers
+    });
+    return config;
+  },
+  (error) => {
+    console.error('Request-Fehler:', error);
+    return Promise.reject(error);
+  }
+);
 
-    try {
-      console.log('🔄 API Request:', options.method || 'GET', url);
-      
-      const response = await fetch(url, config);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+// Response-Interceptor: Automatisch bei 401/403 zur Login-Seite weiterleiten
+api.interceptors.response.use(
+  (response) => {
+    console.log(`✅ API Response: ${response.status} ${response.config.url}`, response.data);
+    return response;
+  },
+  (error) => {
+    console.error(`❌ API Error: ${error.response?.status || 'Network'} ${error.config?.url}`, {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+
+    if (error.response?.status === 401) {
+      const currentPath = window.location.pathname;
+      if (!currentPath.includes('/login') && !currentPath.includes('/invite/')) {
+        localStorage.setItem('redirectAfterLogin', currentPath);
       }
       
-      const data = await response.json();
-      console.log('✅ API Response:', data);
-      return data;
-    } catch (error) {
-      console.error('❌ API Request failed:', error);
-      throw error;
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      if (!currentPath.includes('/login') && !currentPath.includes('/invite/')) {
+        window.location.href = '/login';
+      }
     }
+    return Promise.reject(error);
   }
+);
 
   // ===== AUTH METHODS =====
-  async login(email, password) {
-    const response = await this.request('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
+const originalPost = api.post;
+
+api.login = async (email, password) => {
+  try {
+    console.log('🔐 Versuche Login für:', email);
+    const response = await originalPost('/auth/login', { email, password });
     
-    // Token speichern
-    if (response.token) {
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Prüfe auf gespeicherten Redirect-Pfad
+      const redirectPath = localStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        localStorage.removeItem('redirectAfterLogin');
+        console.log('🔄 Redirect nach Login:', redirectPath);
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 100);
+      }
     }
     
-    return response;
+    return response.data;
+  } catch (error) {
+    console.error('❌ Login-Fehler:', error);
+    throw error;
   }
+};
 
-  async register(userData) {
-    const response = await this.request('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(userData),
-    });
+api.register = async (userData) => {
+  try {
+    console.log('📝 Versuche Registrierung für:', userData.email);
+    const response = await originalPost('/auth/register', userData);
     
-    // Token speichern
-    if (response.token) {
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      
+      // Prüfe auf gespeicherten Redirect-Pfad
+      const redirectPath = localStorage.getItem('redirectAfterLogin');
+      if (redirectPath) {
+        localStorage.removeItem('redirectAfterLogin');
+        console.log('🔄 Redirect nach Registrierung:', redirectPath);
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 100);
+      }
     }
     
-    return response;
+    return response.data;
+  } catch (error) {
+    console.error('❌ Registrierungs-Fehler:', error);
+    throw error;
   }
+};
 
-  async logout() {
+api.logout = async () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  }
+};
 
-  async getCurrentUser() {
-    return this.request('/api/auth/me');
-  }
+api.getCurrentUser = async () => {
+  const response = await api.get('/auth/me');
+  return response.data;
+};
 
   // ===== TRAVEL OFFERS METHODS =====
-  async getTravelOffers(params = {}) {
+api.getTravelOffers = async (params = {}) => {
     const queryParams = new URLSearchParams(params).toString();
-    const endpoint = `/api/travel-offers${queryParams ? `?${queryParams}` : ''}`;
-    const response = await this.request(endpoint);
+  const endpoint = `/travel-offers${queryParams ? `?${queryParams}` : ''}`;
+  const response = await api.get(endpoint);
     
     // MongoDB Backend gibt { success: true, offers: [...] } zurück
-    return response.offers || response;
-  }
+  return response.data.offers || response.data;
+};
 
-  async getTravelOffer(id) {
-    return this.request(`/api/travel-offers/${id}`);
-  }
+api.getTravelOffer = async (id) => {
+  const response = await api.get(`/travel-offers/${id}`);
+  return response.data;
+};
 
-  async createTravelOffer(offerData) {
-    const response = await this.request('/api/travel-offers', {
-      method: 'POST',
-      body: JSON.stringify(offerData),
-    });
-    return response.offer || response;
-  }
+api.createTravelOffer = async (offerData) => {
+  const response = await api.post('/travel-offers', offerData);
+  return response.data.offer || response.data;
+};
 
-  async updateTravelOffer(id, offerData) {
-    return this.request(`/api/travel-offers/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(offerData),
-    });
-  }
+api.updateTravelOffer = async (id, offerData) => {
+  const response = await api.put(`/travel-offers/${id}`, offerData);
+  return response.data;
+};
 
-  async deleteTravelOffer(id) {
-    return this.request(`/api/travel-offers/${id}`, {
-      method: 'DELETE',
-    });
-  }
+api.deleteTravelOffer = async (id) => {
+  const response = await api.delete(`/travel-offers/${id}`);
+  return response.data;
+};
 
   // ===== GROUPS METHODS =====
-  async getGroups() {
-    return this.request('/api/groups');
-  }
+api.getGroups = async () => {
+  const response = await api.get('/groups');
+  return response.data;
+};
 
-  async getGroup(id) {
-    return this.request(`/api/groups/${id}`);
-  }
+api.getGroup = async (id) => {
+  const response = await api.get(`/groups/${id}`);
+  return response.data;
+};
 
-  async createGroup(groupData) {
-    return this.request('/api/groups', {
-      method: 'POST',
-      body: JSON.stringify(groupData),
-    });
-  }
+api.createGroup = async (groupData) => {
+  const response = await api.post('/groups', groupData);
+  return response.data;
+};
 
-  async updateGroup(id, groupData) {
-    return this.request(`/api/groups/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(groupData),
-    });
-  }
+api.updateGroup = async (id, groupData) => {
+  const response = await api.put(`/groups/${id}`, groupData);
+  return response.data;
+};
 
-  async addGroupMember(groupId, userEmail) {
-    return this.request(`/api/groups/${groupId}/members`, {
-      method: 'POST',
-      body: JSON.stringify({ userEmail }),
-    });
-  }
+api.addGroupMember = async (groupId, userEmail) => {
+  const response = await api.post(`/groups/${groupId}/members`, { userEmail });
+  return response.data;
+};
 
-  async leaveGroup(groupId) {
-    return this.request(`/api/groups/${groupId}/leave`, {
-      method: 'DELETE',
-    });
-  }
+api.leaveGroup = async (groupId) => {
+  const response = await api.delete(`/groups/${groupId}/leave`);
+  return response.data;
+};
 
   // ===== PROPOSALS METHODS =====
-  async getProposals(groupId) {
-    return this.request(`/api/proposals/group/${groupId}`);
-  }
+api.getProposals = async (groupId) => {
+  const response = await api.get(`/proposals/group/${groupId}`);
+  return response.data;
+};
 
-  async createProposal(proposalData) {
-    return this.request('/api/proposals', {
-      method: 'POST',
-      body: JSON.stringify(proposalData),
+api.createProposal = async (proposalData) => {
+  const response = await api.post('/proposals', proposalData);
+  return response.data;
+};
+
+api.voteForProposal = async (proposalId, rank = 1) => {
+  const response = await api.post(`/proposals/${proposalId}/vote`, { rank });
+  return response.data;
+};
+
+api.deleteProposal = async (proposalId) => {
+  const response = await api.delete(`/proposals/${proposalId}`);
+  return response.data;
+};
+
+// ===== PROFILE METHODS =====
+api.getProfile = async () => {
+  const response = await api.get('/profile');
+  return response.data;
+};
+
+api.updateProfile = async (profileData) => {
+  const response = await api.put('/profile', profileData);
+  return response.data;
+};
+
+api.uploadProfileImage = async (imageData) => {
+  const response = await api.post('/profile/upload-image', imageData);
+  return response.data;
+};
+
+api.changePassword = async (currentPassword, newPassword) => {
+  const response = await api.put('/profile/password', { currentPassword, newPassword });
+  return response.data;
+};
+
+api.getRecommendations = async () => {
+  const response = await api.get('/profile/recommendations');
+  return response.data;
+};
+
+// ===== INVITE METHODS =====
+api.generateInviteLink = async (groupId, expiresInDays = 7) => {
+  try {
+    console.log('🔗 Generiere Einladungslink:', { groupId, expiresInDays });
+    const response = await api.post('/invites/generate', {
+      groupId,
+      expiresInDays
     });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Fehler beim Generieren des Einladungslinks:', error);
+    throw error;
   }
+};
 
-  async voteForProposal(proposalId, rank = 1) {
-    return this.request(`/api/proposals/${proposalId}/vote`, {
-      method: 'POST',
-      body: JSON.stringify({ rank }),
-    });
+api.getInviteDetails = async (token) => {
+  try {
+    console.log('🔍 Lade Einladungsdetails für Token:', token);
+    
+    const response = await api.get(`/invites/${token}`);
+    
+    console.log('✅ Einladungsdetails geladen:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Fehler beim Laden der Einladungsdetails:', error);
+    
+    // Besseres Error-Handling mit spezifischen Nachrichten
+    if (error.response?.status === 404) {
+      throw new Error('Diese Einladung wurde nicht gefunden oder ist abgelaufen.');
+    } else if (error.response?.status === 400) {
+      throw new Error('Ungültiger Einladungslink.');
+    } else if (error.response?.data?.message) {
+      throw new Error(error.response.data.message);
+    } else if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+      throw new Error('Verbindung zum Server fehlgeschlagen. Ist das Backend gestartet?');
+    } else {
+      throw new Error(`Fehler beim Laden der Einladung: ${error.message}`);
+    }
   }
+};
 
-  async deleteProposal(proposalId) {
-    return this.request(`/api/proposals/${proposalId}`, {
-      method: 'DELETE',
-    });
+api.joinGroupViaInvite = async (token) => {
+  try {
+    console.log('👥 Trete Gruppe bei via Token:', token);
+    const response = await api.post(`/invites/${token}/join`);
+    console.log('✅ Erfolgreich der Gruppe beigetreten:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Fehler beim Beitreten der Gruppe:', error);
+    throw error;
   }
+};
 
-  // ===== PROFILE METHODS =====
-  async getProfile() {
-    return this.request('/api/profile');
+api.getCurrentInviteLink = async (groupId) => {
+  try {
+    console.log('📋 Lade aktuellen Einladungslink für Gruppe:', groupId);
+    const response = await api.get(`/invites/group/${groupId}/current`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Fehler beim Laden des aktuellen Einladungslinks:', error);
+    throw error;
   }
+};
 
-  async updateProfile(profileData) {
-    return this.request('/api/profile', {
-      method: 'PUT',
-      body: JSON.stringify(profileData),
-    });
+api.revokeInviteLink = async (groupId) => {
+  try {
+    console.log('🚫 Widerrufe Einladungslink für Gruppe:', groupId);
+    const response = await api.delete(`/invites/${groupId}/revoke`);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Fehler beim Widerrufen des Einladungslinks:', error);
+    throw error;
   }
-
-  async uploadProfileImage(imageData) {
-    return this.request('/api/profile/upload-image', {
-      method: 'POST',
-      body: JSON.stringify(imageData),
-    });
-  }
-
-  async changePassword(currentPassword, newPassword) {
-    return this.request('/api/profile/password', {
-      method: 'PUT',
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-  }
-
-  async getRecommendations() {
-    return this.request('/api/profile/recommendations');
-  }
+};
 
   // ===== UTILITY METHODS =====
-  isAuthenticated() {
+api.isAuthenticated = () => {
     return !!localStorage.getItem('token');
-  }
+};
 
-  getCurrentUserData() {
+api.getCurrentUserData = () => {
     const userData = localStorage.getItem('user');
     return userData ? JSON.parse(userData) : null;
-  }
-}
+};
 
-// Erstelle und exportiere Singleton-Instanz
-const apiService = new ApiService();
-export default apiService;
+// ===== DEBUGGING HILFSFUNKTIONEN =====
+api.testConnection = async () => {
+  try {
+    console.log('🧪 Teste Backend-Verbindung...');
+    const response = await api.get('/auth/test');
+    console.log('✅ Backend-Verbindung OK:', response.data);
+    return true;
+  } catch (error) {
+    console.error('❌ Backend-Verbindung fehlgeschlagen:', error);
+    return false;
+  }
+};
+
+api.getDebugInfo = () => {
+  return {
+    baseURL: api.defaults.baseURL,
+    hasToken: !!localStorage.getItem('token'),
+    currentUser: JSON.parse(localStorage.getItem('user') || 'null'),
+    redirectPath: localStorage.getItem('redirectAfterLogin')
+  };
+};
+
+export default api;
 
 // Named Exports für direkten Zugriff
 export const {
@@ -249,6 +372,13 @@ export const {
   uploadProfileImage,
   changePassword,
   getRecommendations,
+  generateInviteLink,
+  getInviteDetails,
+  joinGroupViaInvite,
+  getCurrentInviteLink,
+  revokeInviteLink,
   isAuthenticated,
-  getCurrentUserData
-} = apiService;
+  getCurrentUserData,
+  testConnection,
+  getDebugInfo
+} = api;

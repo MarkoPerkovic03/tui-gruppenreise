@@ -53,7 +53,7 @@ import {
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import { useAuth } from '../App';
-import api from '../utils/api';
+import api from '../services/api';
 import deLocale from 'date-fns/locale/de';
 
 const ProposalManager = ({ groupId, group, onGroupUpdate }) => {

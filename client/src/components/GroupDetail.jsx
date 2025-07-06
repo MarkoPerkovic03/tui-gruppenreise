@@ -55,7 +55,7 @@ import {
   People as PeopleIcon,
   Person as PersonIcon
 } from '@mui/icons-material';
-import api from '../utils/api';
+import api from '../services/api';
 import ProposalManager from './ProposalManager';
 import VotingResults from './VotingResults';
 import InviteLinkManager from './InviteLinkManager';

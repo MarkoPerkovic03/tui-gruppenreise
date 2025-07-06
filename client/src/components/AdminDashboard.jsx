@@ -12,7 +12,7 @@ import {
   Switch,
   Alert
 } from '@mui/material';
-import api from '../utils/api';
+import api from '../services/api';
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);

@@ -29,7 +29,7 @@ import {
   Payment as PaymentIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
-import api from '../utils/api';
+import api from '../services/api';
 
 const SimplePaymentManager = ({ bookingSession, isAdmin, onUpdate }) => {
   const { user } = useAuth();

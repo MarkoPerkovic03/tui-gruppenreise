@@ -23,7 +23,7 @@ import { LocalizationProvider, DatePicker } from '@mui/x-date-pickers';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import GroupAddIcon from '@mui/icons-material/GroupAdd';
 import AddIcon from '@mui/icons-material/Add';
-import api from '../utils/api';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import deLocale from 'date-fns/locale/de';
 

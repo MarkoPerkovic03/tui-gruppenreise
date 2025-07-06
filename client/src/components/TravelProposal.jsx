@@ -20,7 +20,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
-import api from '../utils/api';
+import api from '../services/api';
 
 const TravelProposal = ({ groupId, isAdmin, onProposalAdded }) => {
   const [open, setOpen] = useState(false);

@@ -41,7 +41,7 @@ import {
   People as PeopleIcon
 } from '@mui/icons-material';
 import { useAuth } from '../App';
-import api from '../utils/api';
+import api from '../services/api';
 
 const InviteJoinPage = () => {
   const { token } = useParams();
