@@ -69,35 +69,28 @@ router.get('/', auth, async (req, res) => {
       
       // Korrigiere images Array
       if (correctedOffer.images && Array.isArray(correctedOffer.images)) {
-        correctedOffer.images = correctedOffer.images.map(img => {
-          if (typeof img === 'string') {
-            return isValidUrl(img) ? { url: img, title: 'Bild', isMain: false } : null;
-          } else if (img && typeof img === 'object') {
-            return isValidUrl(img.url) ? img : null;
-          }
-          return null;
-        }).filter(img => img !== null);
-        
-        // Falls keine gültigen Bilder vorhanden, füge Fallback hinzu
-        if (correctedOffer.images.length === 0) {
-          correctedOffer.images = [{
-            url: `https://source.unsplash.com/600x400?${encodeURIComponent(offer.destination || 'hotel')}&${Date.now()}`,
-            title: `${offer.title} - Hauptbild`,
-            isMain: true
-          }];
+        correctedOffer.images = correctedOffer.images
+          .map(img => {
+            if (typeof img === 'string') {
+              return isValidUrl(img) ? { url: img, title: 'Bild', isMain: false } : null;
+            } else if (img && typeof img === 'object') {
+              return isValidUrl(img.url) ? img : null;
+            }
+            return null;
+          })
+          .filter(img => img !== null);
+      } else {
+        // Keine images vorhanden
+        correctedOffer.images = [];
+      }
+
+      // Korrigiere mainImage
+      if (correctedOffer.images.length > 0) {
+        if (!isValidUrl(correctedOffer.mainImage)) {
+          correctedOffer.mainImage = correctedOffer.images[0].url;
         }
       } else {
-        // Keine images vorhanden - erstelle Fallback
-        correctedOffer.images = [{
-          url: `https://source.unsplash.com/600x400?${encodeURIComponent(offer.destination || 'hotel')}&${Date.now()}`,
-          title: `${offer.title} - Hauptbild`,
-          isMain: true
-        }];
-      }
-      
-      // Korrigiere mainImage
-      if (!isValidUrl(correctedOffer.mainImage) && correctedOffer.images.length > 0) {
-        correctedOffer.mainImage = correctedOffer.images[0].url;
+        correctedOffer.mainImage = null;
       }
       
       return correctedOffer;
@@ -146,6 +139,35 @@ function isValidUrl(url) {
   }
 }
 
+// Helferfunktion zur Vereinheitlichung von TravelOffer-Daten
+function normalizeOffer(offer) {
+  const correctedOffer = offer.toObject ? { ...offer.toObject() } : { ...offer };
+
+  if (correctedOffer.images && Array.isArray(correctedOffer.images)) {
+    correctedOffer.images = correctedOffer.images
+      .map(img => {
+        if (typeof img === 'string') {
+          return isValidUrl(img) ? { url: img, title: 'Bild', isMain: false } : null;
+        } else if (img && typeof img === 'object') {
+          return isValidUrl(img.url) ? img : null;
+        }
+        return null;
+      })
+      .filter(img => img !== null);
+  } else {
+    correctedOffer.images = [];
+  }
+
+  if (correctedOffer.images.length > 0) {
+    if (!isValidUrl(correctedOffer.mainImage)) {
+      correctedOffer.mainImage = correctedOffer.images[0].url;
+    }
+  } else {
+    correctedOffer.mainImage = null;
+  }
+
+  return correctedOffer;
+}
 // ✅ NEUE ROUTE: Datenbereinigung für Admins
 router.post('/admin/fix-images', adminAuth, async (req, res) => {
   try {
@@ -302,15 +324,6 @@ router.post('/', adminAuth, async (req, res) => {
       }).filter(img => img !== null);
     }
     
-    // Falls keine gültigen Bilder vorhanden, erstelle Fallback
-    if (processedImages.length === 0) {
-      processedImages = [{
-        url: `https://source.unsplash.com/600x400?${encodeURIComponent(destination)}&new`,
-        title: `${title} - Hauptbild`,
-        isMain: true
-      }];
-    }
-
     console.log('🖼️ Verarbeitete Bilder:', processedImages.length);
 
     // Erstelle neues TravelOffer
@@ -322,7 +335,7 @@ router.post('/', adminAuth, async (req, res) => {
       city: city ? city.trim() : '',
       category,
       images: processedImages,
-      mainImage: processedImages[0].url, // Erstes Bild als mainImage
+      ...(processedImages[0] ? { mainImage: processedImages[0].url } : {}),
       pricePerPerson: Number(pricePerPerson),
       pricePerNight: pricePerNight ? Number(pricePerNight) : undefined,
       minPersons: minPersons ? Number(minPersons) : 1,
@@ -394,7 +407,104 @@ router.post('/', adminAuth, async (req, res) => {
   }
 });
 
-// Restliche Routen bleiben unverändert...
-// GET /api/travel-offers/:id, PUT, DELETE, etc.
+// Restliche Routen
+
+// Einzelnes Reiseangebot abrufen
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const offer = await TravelOffer.findById(req.params.id);
+    if (!offer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+
+    res.json(normalizeOffer(offer));
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Reiseangebots:', error);
+    res.status(500).json({ message: 'Fehler beim Abrufen des Reiseangebots' });
+  }
+});
+
+// Reiseangebot aktualisieren
+router.put('/:id', adminAuth, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      destination,
+      country,
+      city,
+      category,
+      images,
+      pricePerPerson,
+      pricePerNight,
+      minPersons,
+      maxPersons,
+      stars,
+      tags
+    } = req.body;
+
+    const update = { lastModifiedBy: req.userId };
+
+    if (title !== undefined) update.title = title.trim();
+    if (description !== undefined) update.description = description.trim();
+    if (destination !== undefined) update.destination = destination.trim();
+    if (country !== undefined) update.country = country.trim();
+    if (city !== undefined) update.city = city.trim();
+    if (category !== undefined) update.category = category;
+    if (pricePerPerson !== undefined) update.pricePerPerson = Number(pricePerPerson);
+    if (pricePerNight !== undefined) update.pricePerNight = Number(pricePerNight);
+    if (minPersons !== undefined) update.minPersons = Number(minPersons);
+    if (maxPersons !== undefined) update.maxPersons = Number(maxPersons);
+    if (stars !== undefined) update.stars = Number(stars);
+    if (tags !== undefined) update.tags = tags;
+
+    if (images) {
+      const processedImages = images
+        .map((img, idx) => {
+          const url = typeof img === 'string' ? img : img.url;
+          if (isValidUrl(url)) {
+            return {
+              url,
+              title: typeof img === 'object' && img.title ? img.title : `Bild ${idx + 1}`,
+              isMain: img.isMain === true || idx === 0
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      update.images = processedImages;
+    }
+
+    const offer = await TravelOffer.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true, runValidators: true, context: 'query' }
+    );
+
+    if (!offer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+
+    res.json({ success: true, message: 'Reiseangebot aktualisiert', offer: normalizeOffer(offer) });
+  } catch (error) {
+    console.error('Fehler beim Aktualisieren des Reiseangebots:', error);
+    res.status(500).json({ message: 'Fehler beim Aktualisieren des Reiseangebots', details: error.message });
+  }
+});
+
+// Reiseangebot löschen
+router.delete('/:id', adminAuth, async (req, res) => {
+  try {
+    const offer = await TravelOffer.findByIdAndDelete(req.params.id);
+    if (!offer) {
+      return res.status(404).json({ message: 'Reiseangebot nicht gefunden' });
+    }
+    res.json({ success: true, message: 'Reiseangebot gelöscht' });
+  } catch (error) {
+    console.error('Fehler beim Löschen des Reiseangebots:', error);
+    res.status(500).json({ message: 'Fehler beim Löschen des Reiseangebots' });
+  }
+});
 
 module.exports = router;
